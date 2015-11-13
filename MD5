@@ -1,0 +1,14 @@
+278c330f0188be2c6370fbd96cc93558 *DESCRIPTION
+5c71620b15fe1f605846b79d91bfe924 *NAMESPACE
+d121d68548ce40df0abeec13b97d15ca *R/ggbiplot.R
+44f1450007452ddda004a357ef863fe2 *R/plots.R
+68c3b29849302136dfc064df42c5e26a *R/rPCA.R
+d910da813ea70a1010d74b0bf64a5724 *R/rSVD.R
+e40c99dd57502949eaae86b706db1f4c *R/wrapper_function.R
+38d8790ec7b6cccedfe6cbc9ae0a8de2 *man/ggbiplot.Rd
+33666a0a00e454b34663db80920e280f *man/ggcorplot.Rd
+e58ff709f96ccf8b9c4a0f5193af18ec *man/ggscreeplot.Rd
+1ef255a241f0ff0299bd29b59059d328 *man/plot.rpca.Rd
+212974c38ae6b8c8846b4c858ec789e1 *man/rpca.Rd
+6dad4aec4a4c7144816d960c3dd04312 *man/rsvd.Rd
+e81efe037cc99742c46e723fdb69af24 *tests/testthat/testthat.R
