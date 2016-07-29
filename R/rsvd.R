@@ -1,10 +1,10 @@
-#' @title  Randomized Singular Value Decomposition .
+#' @title  Randomized Singular Value Decomposition (rsvd).
 #
-#' @description Compute the approximate low-rank singular value decomposition (SVD) of a rectangular matrix.
+#' @description Compute the near-optimal low-rank singular value decomposition (SVD) of a rectangular matrix.
 #
 #' @details
 #' The singular value decomposition (SVD) plays a central role in data analysis and scientific computing.
-#' Randomized SVD (rSVD) is a fast algorithm to compute the the approximate
+#' Randomized SVD (rSVD) is a fast algorithm to compute the approximate
 #' low-rank SVD of a rectangular \eqn{(m,n)} matrix \eqn{A}
 #' using a probablistic algorithm.
 #' Given a target rank \eqn{k << n}, \code{rsvd} factors the input matrix \eqn{A} as
@@ -14,13 +14,13 @@
 #' non-negative and real numbers.
 #'
 #' The parameter \eqn{p} is a oversampling parameter to improve the approximation.
-#' A value between 2 and 10 is recommended and \eqn{p=5} is set as default.
+#' A value between 5 and 10 is recommended and \eqn{p=10} is set by default.
 #'
 #' The parameter \eqn{q} specifies the number of normalized power iterations
 #' (subspace iterations) to reduce the approximation error. This is recommended
 #' if the the singular values decay slowly. In practice 1 or 2 iterations
-#' archive good results, however, computing power iterations increases the
-#' computational time. The number of power iterations is set to \eqn{q=2} by default.
+#' achieve good results, however, computing power iterations increases the
+#' computational time. The number of power iterations is set to \eqn{q=1} by default.
 #'
 #' If \eqn{k > (min(n,m)/1.5)}, a deterministic partial or truncated \code{\link{svd}}
 #' algorithm might be faster.
@@ -41,19 +41,16 @@
 #'                 and \eqn{k}.
 #'
 #' @param p       int, optional \cr
-#'                oversampling parameter for (default \eqn{p=5}).
+#'                oversampling parameter for (default \eqn{p=10}).
 #'
 #' @param q       int, optional \cr
-#'                number of power iterations (default \eqn{q=2}).
+#'                number of power iterations (default \eqn{q=1}).
 #'
-#' @param method  str c('standard', 'fast'), optional \cr
-#'                'standard' : (default): Standard algorithm as described in [1, 2]. \cr
-#'                'fast' : Version II algorithm as described in [2].
-#'
-#' @param sdist  str c('normal', 'unif'), optional \cr
-#'               Specifies the sampling distribution. \cr
-#'               'unif' : (default) Uniform `[-1,1]`. \cr
-#'               'normal' : Normal `~N(0,1)`. \cr
+#' @param sdist   str \eqn{c('normal', 'unif', 'col')}, optional \cr
+#'                Specifies the sampling distribution. \cr
+#'                \eqn{'unif'} : (default) Uniform `[-1,1]`. \cr
+#'                \eqn{'normal}' : Normal `~N(0,1)`. \cr
+#'                \eqn{'col'} : Random column sampling. \cr
 #'
 #' @param vt      bool (\eqn{TRUE}, \eqn{FALSE}), optional \cr
 #'                \eqn{TRUE} : returns the transposed right singular vectors \eqn{vt}. \cr
@@ -64,12 +61,14 @@
 #'
 #'
 #'@return \code{rsvd} returns a list containing the following three components:
-#'\item{u}{  array_like \cr
-#'           Right singular values; array with dimensions \eqn{(m, k)}.
-#'}
 #'\item{d}{  array_like \cr
 #'           Singular values; 1-d array of length \eqn{(k)}.
 #'}
+#'
+#'\item{u}{  array_like \cr
+#'           Right singular values; array with dimensions \eqn{(m, k)}.
+#'}
+#'
 #'\item{v (or vt)}{  array_like \cr
 #'           Left singular values; array with dimensions \eqn{(n, k)}. \cr
 #'           Or if \eqn{vt=TRUE}, array with dimensions \eqn{(k, n)}.
@@ -99,44 +98,36 @@
 #' @author N. Benjamin Erichson, \email{nbe@st-andrews.ac.uk}
 #' @seealso \code{\link{svd}}, \code{\link{rpca}}
 #' @examples
-#'library(rsvd)
-#'set.seed(123)
 #'
-#'#Create real random test matrix with dimension (m, n) and rank k
-#'m = 10
-#'n = 3
-#'k = 5
-#'A <- matrix(runif(m*k), m, k)
-#'A <- A %*% t(A)
-#'A <- A[,1:n]
+#'# Create a n by n Hilbert matrix of order n,
+#'# with entries H[i,j] = 1 / (i + j + 1).
+#'hilbert <- function(n) { i <- 1:n; 1 / outer(i - 1, i, "+") }
+#'H <- hilbert(n=50)
 #'
-#'#Randomized SVD, no low-rank approximation
-#'s <- rsvd(A)
-#'Atilde = s$u %*% diag(s$d) %*% t(s$v)
-#'100 * norm( A - Atilde, 'F') / norm( Atilde,'F') #Percentage reconstruction error << 1e-8
-#'
-#'#Randomized SVD, low-rank approximation k=3
-#'s <- rsvd(A, k=3)
-#'Atilde = s$u %*% diag(s$d) %*% t(s$v)
-#'100 * norm( A - Atilde, 'F') / norm( Atilde,'F') #Percentage reconstruction error << 1e-8
-#'
-#'#Randomized SVD, low-rank approximation k=2
-#'s <- rsvd(A, k=2)
-#'Atilde = s$u %*% diag(s$d) %*% t(s$v)
-#'100 * norm( A - Atilde, 'F') / norm( Atilde,'F') #Percentage reconstruction error < 3.5%
-#'
+#'# Low-rank (k=10) matrix approximation using rsvd
+#'k=10
+#'s <- rsvd(H, k=k)
+#'Hre <- s$u %*% diag(s$d) %*% t(s$v) # matrix approximation
+#'print(100 * norm( H - Hre, 'F') / norm( H,'F')) # percentage error
+
+#'# Compare to truncated base svd
+#'s <- svd(H)
+#'Hre <- s$u[,1:k] %*% diag(s$d[1:k]) %*% t(s$v[,1:k]) # matrix approximation
+#'print(100 * norm( H - Hre, 'F') / norm( H,'F')) # percentage error
 #'
 
 #' @export
-rsvd <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard', sdist="unif", vt=FALSE) UseMethod("rsvd")
+rsvd <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", vt=FALSE) UseMethod("rsvd")
 
 #' @export
-rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard', sdist="unif", vt=FALSE) {
+rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", vt=FALSE) {
     #*************************************************************************
     #***        Author: N. Benjamin Erichson <nbe@st-andrews.ac.uk>        ***
     #***                              <2015>                               ***
     #***                       License: BSD 3 clause                       ***
     #*************************************************************************
+
+    A <- as.matrix(A)
 
     #Dim of input matrix
     m <- nrow(A)
@@ -150,10 +141,10 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard
       flipped <- TRUE
     } else flipped <- FALSE
 
-
     #Set target rank
     if(is.null(k)) k=n
     if(k>n) k <- n
+    if(is.character(k)) stop("Target rank is not valid!")
     if(k<1) stop("Target rank is not valid!")
 
     #Set oversampling parameter
@@ -176,9 +167,9 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard
     if(nu>k) nu <- k
     if(nv>k) nv <- k
     if(flipped==TRUE) {
-      a <- nu
+      temp <- nu
       nu <- nv
-      nv <- a
+      nv <- temp
     }
 
 
@@ -188,36 +179,41 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard
     O <- switch(sdist,
                 normal = matrix(stats::rnorm(l*n), n, l),
                 unif = matrix(stats::runif(l*n), n, l),
+                col = sample.int(n, size = l),
                 stop("Selected sampling distribution is not supported!"))
 
     if(isreal==FALSE) {
       O <- O + switch(sdist,
-                normal = 1i * matrix(stats::rnorm(l*n), n, l),
-                unif = 1i * matrix(stats::runif(l*n), n, l),
-                stop("Selected sampling distribution is not supported!"))
+                      normal = 1i * matrix(stats::rnorm(l*n), n, l),
+                      unif = 1i * matrix(stats::runif(l*n), n, l),
+                      col = NULL,
+                      stop("Selected sampling distribution is not supported!"))
     }
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Build sample matrix Y : Y = A * O
     #Note: Y should approximate the range of A
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Y <- A %*% O
+    if(sdist=='col'){
+      Y = A[,O]
+    }else{
+      Y <- A %*% O
+    }
     remove(O)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Orthogonalize Y using economic QR decomposition: Y=QR
     #If q > 0 perfrom q subspace iterations
-    #Note: check_finite=False may give a performance gain
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if( q > 0 ) {
         for( i in 1:q) {
-          if( ((2*i-2) %% q) == 0 ) {
+          if( ((2*i-2) %% 1) == 0 ) {
             Y <- qr.Q( qr(Y, complete = FALSE) , complete = FALSE )
           }
 
           Z = crossprod_help( A , Y )
 
-          if( ((2*i-1) %% q) == 0 ) {
+          if( ((2*i-1) %% 1) == 0 ) {
             Z <- qr.Q( qr(Z, complete = FALSE) , complete = FALSE )
           }
 
@@ -226,7 +222,7 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard
         }#End for
     }#End if
 
-    Q <- qr.Q( qr(Y, complete = FALSE) , complete = FALSE )
+    Q <- qr.Q( qr(Y) , complete = FALSE )
     remove(Y)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -235,100 +231,44 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=5, q=2, method='standard
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     B <- crossprod_help( Q , A )
 
-    if(method=='standard') {
-      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      #Singular Value Decomposition
-      #Note: B = U" * S * Vt
-      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      #Compute SVD
-      rsvdObj <- La.svd(B, nu=nu, nv=nv)
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #Singular Value Decomposition
+    #Note: B = U" * S * Vt
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #Compute SVD
+    rsvdObj <- La.svd(B, nu=nu, nv=nv)
 
-      #Recover right singular vectors
-      if(nu==0) {
-        rsvdObj$u <- matrix(0)
-      } else{
+    #Recover right singular vectors
+    if(nu!=0) {
         rsvdObj$u <- Q %*% rsvdObj$u
-      }
+    }else{ rsvdObj$u <- matrix(0)}
 
-      if(nv==0) {
+    if(nv==0) {
         rsvdObj$v <- matrix(0)
-      }
+    }
 
-      #Return
-      if(flipped==TRUE) {
+    #Return
+    if(flipped==TRUE) {
         u_temp <- rsvdObj$u
         rsvdObj$u <- H(rsvdObj$v)
         rsvdObj$d <- rsvdObj$d[1:k]
         if(vt==FALSE) {
           rsvdObj$v <- u_temp
           rsvdObj$vt <- NULL
-        } else {
-          rsvdObj$vt <- H(u_temp)
-        }
+        } else { rsvdObj$vt <- H(u_temp) }
+        if(nu==0){ rsvdObj$v <- NULL}
+        if(nv==0){ rsvdObj$u <- NULL}
         return(rsvdObj)
 
-
-      } else {
+    } else {
         rsvdObj$d <- rsvdObj$d[1:k]
         if(vt==FALSE) {
           rsvdObj$v <- H(rsvdObj$v)
           rsvdObj$vt <- NULL
         }
+        if(nu==0){ rsvdObj$u <- NULL}
+        if(nv==0){ rsvdObj$v <- NULL}
         return(rsvdObj)
       }
+} # End rsvd
 
-    }else if(method=='fast'){
-      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      #Orthogonalize B.T using reduced QR decomposition: B.T = Q" * R"
-      #Note: reduced QR returns Q and R, and destroys B_gpu
-      #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      #Compute QR
-      qr_out <- qr( H(B) , complete = FALSE)
-      Qstar <- qr.Q(qr_out , complete = FALSE)
-      Rstar <- qr.R(qr_out , complete = FALSE)
-
-      #Compute singular value decomposition
-      rsvdObj <- La.svd(Rstar, nu=nv, nv=nu)
-
-      #Recover right and left singular vectors
-      if(nu==0) {
-        U <- matrix(0)
-      } else{
-        U <- tcrossprod_help( Q, rsvdObj$v )
-      }
-
-      if(nv==0) {
-        V <- matrix(0)
-      } else{
-        V <- Qstar %*% rsvdObj$u
-      }
-
-
-
-      #Return
-      if(flipped==TRUE) {
-        rsvdObj$u <- V
-        rsvdObj$d <- rsvdObj$d[1:k]
-        if(vt==FALSE) {
-          rsvdObj$v <- U
-          rsvdObj$vt <- NULL
-        } else {
-          rsvdObj$vt <- H(U)
-        }
-        return(rsvdObj)
-
-        } else {
-        rsvdObj$u <- U
-        rsvdObj$d <- rsvdObj$d[1:k]
-        if(vt==FALSE) {
-          rsvdObj$v <- V
-          rsvdObj$vt <- NULL
-        } else {
-          rsvdObj$vt <- H(V)
-        }
-        return(rsvdObj)
-      }
-
-    }
-
-}#End rsvd
