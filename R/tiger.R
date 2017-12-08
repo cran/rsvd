@@ -4,9 +4,9 @@
 #'
 #' @docType data
 #'
-#' @usage data(tiger)
+#' @usage data('tiger')
 #'
-#' @format An object of class \code{"rsvd"}.
+#' @format An object of class \code{\link[rsvd]{rsvd}}.
 #'
 #' @keywords image
 #'
@@ -15,10 +15,11 @@
 #' @source \href{https://en.wikipedia.org/wiki/File:Siberischer_tiger_de_edit02.jpg}{Wikimedia}
 #'
 #' @examples
-#' library(rsvd)
-#' #data(tiger)
+#' \dontrun{
+#' library('rsvd')
+#' data('tiger')
 #'
 #' #Display image
-#' #image(tiger, col = gray((0:255)/255))
-#'
+#' image(tiger, col = gray((0:255)/255))
+#' }
 "tiger"

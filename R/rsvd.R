@@ -1,79 +1,69 @@
 #' @title  Randomized Singular Value Decomposition (rsvd).
 #
-#' @description Compute the near-optimal low-rank singular value decomposition (SVD) of a rectangular matrix.
+#' @description The randomized SVD computes the near-optimal low-rank approximation of a rectangular matrix
+#' using a fast probablistic algorithm.
 #
 #' @details
-#' The singular value decomposition (SVD) plays a central role in data analysis and scientific computing.
-#' Randomized SVD (rSVD) is a fast algorithm to compute the approximate
-#' low-rank SVD of a rectangular \eqn{(m,n)} matrix \eqn{A}
-#' using a probablistic algorithm.
-#' Given a target rank \eqn{k << n}, \code{rsvd} factors the input matrix \eqn{A} as
-#' \eqn{A = U * diag(d) * V'}. The right singluar vectors are the columns of the
-#' real or complex unitary matrix \eqn{U} . The left singular vectors are the columns
-#' of the real or complex unitary matrix \eqn{V}. The singular values \eqn{d} are
-#' non-negative and real numbers.
+#' The singular value decomposition (SVD) plays an important role in data analysis, and scientific computing.
+#' Given a rectangular \eqn{(m,n)} matrix \eqn{A}, and a target rank \eqn{k << min(m,n)}, 
+#' the SVD factors the input matrix \eqn{A} as
+#' 
+#' \deqn{ A  =  U_{k} diag(d_{k})) V_{k}^\top }{ A  =  U %*% diag(d) %*% t(V)}
+#' 
+#' The \eqn{k} left singular vectors are the columns of the
+#' real or complex unitary matrix \eqn{U}. The \eqn{k} right singular vectors are the columns
+#' of the real or complex unitary matrix \eqn{V}. The \eqn{k} dominant singular values are the 
+#' entries of \eqn{d}, and non-negative and real numbers.
 #'
-#' The parameter \eqn{p} is a oversampling parameter to improve the approximation.
-#' A value between 5 and 10 is recommended and \eqn{p=10} is set by default.
+#' \eqn{p} is an oversampling parameter to improve the approximation.
+#' A value of at least 10 is recommended, and \eqn{p=10} is set by default.
 #'
-#' The parameter \eqn{q} specifies the number of normalized power iterations
-#' (subspace iterations) to reduce the approximation error. This is recommended
-#' if the the singular values decay slowly. In practice 1 or 2 iterations
+#' The parameter \eqn{q} specifies the number of power (subspace) iterations
+#' to reduce the approximation error. The power scheme is recommended,
+#' if the singular values decay slowly. In practice, 2 or 3 iterations
 #' achieve good results, however, computing power iterations increases the
-#' computational time. The number of power iterations is set to \eqn{q=1} by default.
+#' computational costs. The power scheme is set to \eqn{q=2} by default.
 #'
-#' If \eqn{k > (min(n,m)/1.5)}, a deterministic partial or truncated \code{\link{svd}}
+#' If \eqn{k > (min(n,m)/4)}, a deterministic partial or truncated \code{\link{svd}}
 #' algorithm might be faster.
 #'
 #'
-#' @param A       array_like \cr
-#'                a real/complex input matrix (or data frame), with dimensions \eqn{(m, n)}.
+#' @param A       array_like; \cr
+#'                a real/complex \eqn{(m, n)} input matrix (or data frame) to be decomposed.
 #'
-#' @param k       int, optional \cr
-#'                determines the target rank of the low-rank decomposition and should satisfy \eqn{k << min(m,n)}.
+#' @param k       integer; \cr
+#'                specifies the target rank of the low-rank decomposition. \eqn{k} should satisfy \eqn{k << min(m,n)}.
 #'
-#' @param nu       int, optional \cr
-#'                 the number of left singular vectors to be computed. This must be between \eqn{0}
-#'                 and \eqn{k}.
+#' @param nu      integer, optional; \cr
+#'                number of left singular vectors to be returned. \eqn{nu} must be between \eqn{0} and \eqn{k}.
 #'
-#' @param nv       int, optional \cr
-#'                 the number of right singular vectors to be computed. This must be between \eqn{0}
-#'                 and \eqn{k}.
+#' @param nv      integer, optional; \cr
+#'                number of right singular vectors to be returned. \eqn{nv} must be between \eqn{0} and \eqn{k}.
 #'
-#' @param p       int, optional \cr
-#'                oversampling parameter for (default \eqn{p=10}).
+#' @param p       integer, optional; \cr
+#'                oversampling parameter (by default \eqn{p=10}).
 #'
-#' @param q       int, optional \cr
-#'                number of power iterations (default \eqn{q=1}).
+#' @param q       integer, optional; \cr
+#'                number of additional power iterations (by default \eqn{q=2}).
 #'
-#' @param sdist   str \eqn{c('normal', 'unif', 'col')}, optional \cr
-#'                Specifies the sampling distribution. \cr
-#'                \eqn{'unif'} : (default) Uniform `[-1,1]`. \cr
-#'                \eqn{'normal}' : Normal `~N(0,1)`. \cr
-#'                \eqn{'col'} : Random column sampling. \cr
-#'
-#' @param vt      bool (\eqn{TRUE}, \eqn{FALSE}), optional \cr
-#'                \eqn{TRUE} : returns the transposed right singular vectors \eqn{vt}. \cr
-#'                \eqn{FALSE} : (default) returns the right singular vectors as \eqn{v}, this is the format
-#'                as \code{\link{svd}} returns \eqn{v}.
-#'
-#' @param ............. .
-#'
+#' @param sdist   string \eqn{c( 'unif', 'normal', 'rademacher')}, optional; \cr
+#'                specifies the sampling distribution of the random test matrix: \cr
+#'                		\eqn{'unif'} :  Uniform `[-1,1]`. \cr
+#'                		\eqn{'normal}' (default) : Normal `~N(0,1)`. \cr
+#'                		\eqn{'rademacher'} : Rademacher random variates. \cr
 #'
 #'@return \code{rsvd} returns a list containing the following three components:
-#'\item{d}{  array_like \cr
-#'           Singular values; 1-d array of length \eqn{(k)}.
+#'\item{d}{  array_like; \cr
+#'           singular values; vector of length \eqn{(k)}.
 #'}
 #'
-#'\item{u}{  array_like \cr
-#'           Right singular values; array with dimensions \eqn{(m, k)}.
+#'\item{u}{  array_like; \cr
+#'           left singular vectors; \eqn{(m, k)} or \eqn{(m, nu)} dimensional array.
 #'}
 #'
-#'\item{v (or vt)}{  array_like \cr
-#'           Left singular values; array with dimensions \eqn{(n, k)}. \cr
-#'           Or if \eqn{vt=TRUE}, array with dimensions \eqn{(k, n)}.
+#'\item{v}{  array_like; \cr
+#'           right singular vectors; \eqn{(n, k)} or \eqn{(n, nv)} dimensional array. \cr
 #'}
-#'\item{.............}{.}
 #'
 #' @note The singular vectors are not unique and only defined up to sign
 #' (a constant of modulus one in the complex case). If a left singular vector
@@ -88,18 +78,19 @@
 #'          algorithms for constructing approximate matrix
 #'          decompositions" (2009).
 #'          (available at arXiv \url{http://arxiv.org/abs/0909.4061}).
-#'   \item  [2] S. Voronin and P.Martinsson.
-#'          "RSVDPACK: Subroutines for computing partial singular value
-#'          decompositions via randomized sampling on single core, multi core,
-#'          and GPU architectures" (2015).
-#'          (available at `arXiv \url{http://arxiv.org/abs/1502.05366}).
+#'   \item  [2] N. B. Erichson, S. Voronin, S. Brunton, J. N. Kutz.
+#'          "Randomized matrix decompositions using R" (2016).
+#'          (available at `arXiv \url{http://arxiv.org/abs/1608.02148}).
 #' }
 #'
-#' @author N. Benjamin Erichson, \email{nbe@st-andrews.ac.uk}
+#' @author N. Benjamin Erichson, \email{erichson@uw.edu}
+#' 
 #' @seealso \code{\link{svd}}, \code{\link{rpca}}
+#' 
 #' @examples
+#'library('rsvd')
 #'
-#'# Create a n by n Hilbert matrix of order n,
+#'# Create a n x n Hilbert matrix of order n,
 #'# with entries H[i,j] = 1 / (i + j + 1).
 #'hilbert <- function(n) { i <- 1:n; 1 / outer(i - 1, i, "+") }
 #'H <- hilbert(n=50)
@@ -117,10 +108,10 @@
 #'
 
 #' @export
-rsvd <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", vt=FALSE) UseMethod("rsvd")
+rsvd <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=2, sdist="normal") UseMethod("rsvd")
 
 #' @export
-rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", vt=FALSE) {
+rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=2, sdist="normal") {
     #*************************************************************************
     #***        Author: N. Benjamin Erichson <nbe@st-andrews.ac.uk>        ***
     #***                              <2015>                               ***
@@ -134,7 +125,7 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     n <- ncol(A)
 
     #Flipp matrix, if wide
-    if(m<n){
+    if(m < n){
       A <- H(A)
       m <- nrow(A)
       n <- ncol(A)
@@ -142,15 +133,15 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     } else flipped <- FALSE
 
     #Set target rank
-    if(is.null(k)) k=n
-    if(k>n) k <- n
+    if(is.null(k)) k = n
+    if(k > n) k <- n
     if(is.character(k)) stop("Target rank is not valid!")
-    if(k<1) stop("Target rank is not valid!")
+    if(k < 1) stop("Target rank is not valid!")
 
     #Set oversampling parameter
-    l <- round(k)+round(p)
-    if(l>n) l <- n
-    if(l<1) stop("Target rank is not valid!")
+    l <- round(k) + round(p)
+    if(l > n) l <- n
+    if(l < 1) stop("Target rank is not valid!")
 
     #Check if array is real or complex
     if(is.complex(A)) {
@@ -162,10 +153,10 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     #Set number of singular vectors
     if(is.null(nu)) nu <- k
     if(is.null(nv)) nv <- k
-    if(nu<0) nu <- 0
-    if(nv<0) nv <- 0
-    if(nu>k) nu <- k
-    if(nv>k) nv <- k
+    if(nu < 0) nu <- 0
+    if(nv < 0) nv <- 0
+    if(nu > k) nu <- k
+    if(nv > k) nv <- k
     if(flipped==TRUE) {
       temp <- nu
       nu <- nv
@@ -179,14 +170,14 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     O <- switch(sdist,
                 normal = matrix(stats::rnorm(l*n), n, l),
                 unif = matrix(stats::runif(l*n), n, l),
-                col = sample.int(n, size = l),
+                rademacher = matrix(sample(c(-1,1), (l*n), replace = TRUE, prob = c(0.5,0.5)), n, l),
                 stop("Selected sampling distribution is not supported!"))
 
     if(isreal==FALSE) {
       O <- O + switch(sdist,
                       normal = 1i * matrix(stats::rnorm(l*n), n, l),
                       unif = 1i * matrix(stats::runif(l*n), n, l),
-                      col = NULL,
+                      rademacher = 1i * matrix(sample(c(-1,1), (l*n), replace = TRUE, prob = c(0.5,0.5)), n, l),
                       stop("Selected sampling distribution is not supported!"))
     }
 
@@ -194,11 +185,7 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     #Build sample matrix Y : Y = A * O
     #Note: Y should approximate the range of A
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if(sdist=='col'){
-      Y = A[,O]
-    }else{
-      Y <- A %*% O
-    }
+    Y <- A %*% O
     remove(O)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -207,68 +194,48 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=1, sdist="unif", v
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if( q > 0 ) {
         for( i in 1:q) {
-          if( ((2*i-2) %% 1) == 0 ) {
             Y <- qr.Q( qr(Y, complete = FALSE) , complete = FALSE )
-          }
-
-          Z = crossprod_help( A , Y )
-
-          if( ((2*i-1) %% 1) == 0 ) {
+            Z <- crossprod_help(A , Y )
             Z <- qr.Q( qr(Z, complete = FALSE) , complete = FALSE )
-          }
-
-          Y <- A %*% Z
-          remove(Z)
+            Y <- A %*% Z
         }#End for
+        remove(Z)
     }#End if
 
-    Q <- qr.Q( qr(Y) , complete = FALSE )
+    Q <- qr.Q( qr(Y, complete = FALSE) , complete = FALSE )
     remove(Y)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Project the data matrix a into a lower dimensional subspace
-    #B = Q.T * A
+    #B := Q.T * A
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    B <- crossprod_help( Q , A )
+    B <- crossprod_help(Q , A )
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Singular Value Decomposition
-    #Note: B = U" * S * Vt
+    #Note: B =: U * S * Vt
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #Compute SVD
-    rsvdObj <- La.svd(B, nu=nu, nv=nv)
+    rsvdObj <- svd(B, nu=nu, nv=nv) # Compute SVD
+    rsvdObj$d <- rsvdObj$d[1:k] # Truncate singular values
+    
+    if(nu != 0) rsvdObj$u <- Q %*% rsvdObj$u # Recover left singular vectors
 
-    #Recover right singular vectors
-    if(nu!=0) {
-        rsvdObj$u <- Q %*% rsvdObj$u
-    }else{ rsvdObj$u <- matrix(0)}
-
-    if(nv==0) {
-        rsvdObj$v <- matrix(0)
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # Flipp SVD back
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(flipped == TRUE) {
+        u_temp <- rsvdObj$u
+        rsvdObj$u <- rsvdObj$v
+        rsvdObj$v <- u_temp
     }
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Return
-    if(flipped==TRUE) {
-        u_temp <- rsvdObj$u
-        rsvdObj$u <- H(rsvdObj$v)
-        rsvdObj$d <- rsvdObj$d[1:k]
-        if(vt==FALSE) {
-          rsvdObj$v <- u_temp
-          rsvdObj$vt <- NULL
-        } else { rsvdObj$vt <- H(u_temp) }
-        if(nu==0){ rsvdObj$v <- NULL}
-        if(nv==0){ rsvdObj$u <- NULL}
-        return(rsvdObj)
-
-    } else {
-        rsvdObj$d <- rsvdObj$d[1:k]
-        if(vt==FALSE) {
-          rsvdObj$v <- H(rsvdObj$v)
-          rsvdObj$vt <- NULL
-        }
-        if(nu==0){ rsvdObj$u <- NULL}
-        if(nv==0){ rsvdObj$v <- NULL}
-        return(rsvdObj)
-      }
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(nu == 0){ rsvdObj$u <- NULL}
+    if(nv == 0){ rsvdObj$v <- NULL}
+    class(rsvdObj) <- "rsvd"
+    return(rsvdObj) 
+    
 } # End rsvd
 

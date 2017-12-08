@@ -4,26 +4,26 @@
 \name{tiger}
 \alias{tiger}
 \title{Tiger}
-\format{An object of class \code{"rsvd"}.}
+\format{An object of class \code{\link[rsvd]{rsvd}}.}
 \source{
 \href{https://en.wikipedia.org/wiki/File:Siberischer_tiger_de_edit02.jpg}{Wikimedia}
 }
 \usage{
-data(tiger)
+data('tiger')
 }
 \description{
 1600x1200 grayscaled (8 bit [0-255]/255) image.
 }
 \examples{
-library(rsvd)
-#data(tiger)
+\dontrun{
+library('rsvd')
+data('tiger')
 
 #Display image
-#image(tiger, col = gray((0:255)/255))
-
+image(tiger, col = gray((0:255)/255))
+}
 }
 \references{
 S. Taheri (2006). "Panthera tigris altaica", (Online image)
 }
 \keyword{image}
-
