@@ -4,8 +4,8 @@
 \alias{rpca}
 \title{Randomized principal component analysis (rpca).}
 \usage{
-rpca(A, k = NULL, center = TRUE, scale = TRUE, retx = TRUE, p = 10,
-  q = 2, rand = TRUE)
+rpca(A, k = NULL, center = TRUE, scale = TRUE, retx = TRUE,
+  p = 10, q = 2, rand = TRUE)
 }
 \arguments{
 \item{A}{array_like; \cr

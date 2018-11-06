@@ -1,0 +1,10 @@
+bibentry(bibtype = "Article",
+         title = "Randomized Matrix Decompositions using {R}",
+         author = c(person("N. Benjamin", "Erichson"),
+                    person("Sergey", "Voronin"),
+                    person("Steven L.", "Brunton"),
+                    person("J. Nathan", "Kutz")),
+         year = 2016,
+  	 journal = "arXiv preprint arXiv:1608.02148",
+         note = " Journal of Statistical Software (to appear)",
+         url = "https://arxiv.org/abs/1608.02148")

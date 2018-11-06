@@ -8,7 +8,7 @@
 #' Given a rectangular \eqn{(m,n)} matrix \eqn{A}, and a target rank \eqn{k << min(m,n)}, 
 #' the SVD factors the input matrix \eqn{A} as
 #' 
-#' \deqn{ A  =  U_{k} diag(d_{k})) V_{k}^\top }{ A  =  U %*% diag(d) %*% t(V)}
+#' \deqn{ A  =  U_{k} diag(d_{k}) V_{k}^\top }{ A = U diag(d) t(V)}
 #' 
 #' The \eqn{k} left singular vectors are the columns of the
 #' real or complex unitary matrix \eqn{U}. The \eqn{k} right singular vectors are the columns
@@ -117,8 +117,6 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=2, sdist="normal")
     #***                              <2015>                               ***
     #***                       License: BSD 3 clause                       ***
     #*************************************************************************
-
-    A <- as.matrix(A)
 
     #Dim of input matrix
     m <- nrow(A)

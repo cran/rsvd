@@ -93,8 +93,8 @@ ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   variance = rpcaObj$sdev**2
   explained_variance_ratio = round(variance / rpcaObj$var, 3) * 100
-  PC1 = paste("Principal component ", pcs[1], "(", explained_variance_ratio[pcs[1]]  , "% explained var.)", sep="")
-  PC2 = paste("Principal component ", pcs[2], "(", explained_variance_ratio[pcs[2]]  , "% explained var.)", sep="")
+  PC1 = paste("PC ", pcs[1], "(", explained_variance_ratio[pcs[1]]  , "% explained var.)", sep="")
+  PC2 = paste("PC ", pcs[2], "(", explained_variance_ratio[pcs[2]]  , "% explained var.)", sep="")
   
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
