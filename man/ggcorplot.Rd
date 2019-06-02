@@ -45,5 +45,5 @@ Creates a pretty plot which is showing the correlation of
 \code{\link[rsvd]{rpca}}, \code{\link[ggplot2]{ggplot}}
 }
 \author{
-N. Benjamin Erichson, \email{erichson@uw.edu}
+N. Benjamin Erichson, \email{erichson@berkeley.edu}
 }

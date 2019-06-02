@@ -55,5 +55,5 @@ variables factor map, i.e, plotting both the principal component scores and dire
 \code{\link[rsvd]{rpca}}, \code{\link[ggplot2]{ggplot}}
 }
 \author{
-N. Benjamin Erichson, \email{erichson@uw.edu}
+N. Benjamin Erichson, \email{erichson@berkeley.edu}
 }
