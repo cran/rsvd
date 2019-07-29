@@ -53,6 +53,7 @@
 #'                		\eqn{'rademacher'} : Rademacher random variates. \cr
 #'
 #'@return \code{rsvd} returns a list containing the following three components:
+#'\describe{
 #'\item{d}{  array_like; \cr
 #'           singular values; vector of length \eqn{(k)}.
 #'}
@@ -63,6 +64,7 @@
 #'
 #'\item{v}{  array_like; \cr
 #'           right singular vectors; \eqn{(n, k)} or \eqn{(n, nv)} dimensional array. \cr
+#'}
 #'}
 #'
 #' @note The singular vectors are not unique and only defined up to sign
@@ -78,7 +80,7 @@
 #'        Journal of Statistical Software, 89(11), 1-48.
 #'        \url{http://doi.org/10.18637/jss.v089.i11}.
 #' 
-#'   \item  [2] N. Halko, P. Martinsson, and J. Tropp.
+#'  \item  [2] N. Halko, P. Martinsson, and J. Tropp.
 #'          "Finding structure with randomness: probabilistic
 #'          algorithms for constructing approximate matrix
 #'          decompositions" (2009).
@@ -221,8 +223,10 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=2, sdist="normal")
     if(nu != 0) rsvdObj$u <- Q %*% rsvdObj$u # Recover left singular vectors
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # Flipp SVD back
+    # Flip SVD back
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    if(nu == 0){ rsvdObj$u <- NULL}
+    if(nv == 0){ rsvdObj$v <- NULL}
     if(flipped == TRUE) {
         u_temp <- rsvdObj$u
         rsvdObj$u <- rsvdObj$v
@@ -232,8 +236,6 @@ rsvd.default <- function(A, k=NULL, nu=NULL, nv=NULL, p=10, q=2, sdist="normal")
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #Return
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if(nu == 0){ rsvdObj$u <- NULL}
-    if(nv == 0){ rsvdObj$v <- NULL}
     class(rsvdObj) <- "rsvd"
     return(rsvdObj) 
     
