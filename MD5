@@ -1,4 +1,4 @@
-90804b1d3ac7bee41953a545d7bc874c *DESCRIPTION
+99b2d49b4e6b4d6ce4646cd2b0ef864f *DESCRIPTION
 38966bf49514a5860d2c70c8b6eaa490 *NAMESPACE
 53664b18a26dd766a951e95c19167e1c *R/digits.R
 2b82778ef54ce986af1f631269a12764 *R/ggbiplot.R
@@ -14,7 +14,8 @@ ebb9d50eca32fdcb6abd6989fd64c77b *R/rpca.R
 54895e8cb5b6d7beff77adaee1003421 *R/rsvd.R
 dee1271304c67bbf33474ba9fe7bd97b *R/tiger.R
 3bbc9274abb24d32c962182726fc1367 *R/wrapper_function.R
-4b61a09497f29ba05a6909f782462b94 *build/partial.rdb
+3590eb3ace4484b584ee7e0790801639 *README.md
+21c9401b8c07f38d762ade4612fc4ffe *build/partial.rdb
 304fb8b0f219a98689ce1a69690d86bd *data/digits.RData
 cd193077429acc306d1d7facd4add288 *data/tiger.RData
 af847c34278806ab72d70d259d524021 *inst/CITATION
