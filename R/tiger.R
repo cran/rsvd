@@ -1,25 +1,39 @@
-#'Tiger
+#' @title Tiger image
 #'
-#' @description 1600x1200 grayscaled (8 bit [0-255]/255) image.
+#' @description
+#' A grayscale tiger photograph for examining how low-rank approximation
+#' changes image detail. The image is stored as a matrix, so a factorization
+#' and its reconstruction can be compared directly with the original pixels.
+#' Intensities have been divided by 255 to lie between zero and one.
 #'
 #' @docType data
+#' @usage data("tiger")
+#' @format A numeric matrix with 1600 rows and 1200 columns. There are no labels
+#' or color channels; each entry is a grayscale intensity.
+#' @details
+#' The stored orientation is suitable for \code{\link[graphics]{image}} as
+#' shown below. Matrix rows and columns correspond to the horizontal and
+#' vertical axes used by that function, respectively. For a decomposition,
+#' use \code{tiger} directly and reconstruct the matrix in the same orientation.
 #'
-#' @usage data('tiger')
+#' The photograph is not exactly low rank. A low-rank factorization retains
+#' part of its structure, and increasing the approximation rank preserves
+#' more texture and fine detail. Storing only the factors can require much
+#' less space than storing all pixels. See \code{\link{rsvd}},
+#' \code{\link{rid}} and \code{\link{rcur}} for decomposition examples.
 #'
-#' @format An object of class \code{\link[rsvd]{rsvd}}.
-#'
-#' @keywords image
-#'
-#' @references S. Taheri (2006). "Panthera tigris altaica", (Online image)
-#'
-#' @source \href{https://en.wikipedia.org/wiki/File:Siberischer_tiger_de_edit02.jpg}{Wikimedia}
-#'
+#' @keywords datasets
+#' @references S. Taheri (2006), edited by Fir0002. Panthera tigris altaica.
+#' Online photograph, distributed under
+#' \href{https://creativecommons.org/licenses/by-sa/2.5/}{Creative Commons
+#' Attribution-ShareAlike 2.5}. The package supplies a grayscale conversion.
+#' @source \href{https://commons.wikimedia.org/wiki/File:Sibirischer_tiger_de_edit02.jpg}{Wikimedia image and attribution}
 #' @examples
-#' \dontrun{
-#' library('rsvd')
-#' data('tiger')
-#'
-#' #Display image
-#' image(tiger, col = gray((0:255)/255))
-#' }
+#' data("tiger")
+#' dim(tiger)
+#' range(tiger)
+#' image(seq_len(nrow(tiger)), seq_len(ncol(tiger)), tiger,
+#'       col = gray((0:255) / 255), asp = 1,
+#'       axes = FALSE, useRaster = TRUE)
+
 "tiger"

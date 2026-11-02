@@ -1,41 +1,93 @@
-#devtools::use_package('ggplot2')
-#library('ggplot2')
-
-#' @title  Variables factor map for \code{\link[rsvd]{rpca}} using \code{\link[ggplot2]{ggplot}}.
-#
-#' @description Creates a pretty plot which is showing the correlation of
-#'    the original variable with the principal component (PCs).
+#' @title PCA variable directions and correlation circle
 #'
-#' @param rpcaObj  Object returned by the \code{\link[rsvd]{rpca}} function.
+#' @description Display how variables are represented in a plane defined
+#' by two retained principal components. Arrows show their directions,
+#' optionally scaled by the component standard deviations, and a unit
+#' circle provides a reference for interpreting standardized fits. The
+#' optional \pkg{ggplot2} package is required.
 #'
-#' @param pcs   Array_like. \cr
-#'              An array with two values indicating the two PCs which should be used for plotting. 
-#'              By default the first two PCs are used, e.g., \eqn{c(1,2)}. 
-#'              
-#' @param loadings   Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-#'                  If \eqn{TRUE}, the eigenvectors
-#'                  are unit scaled by the square root of the eigenvalues \eqn{W = W * diag(sqrt(eigvals))}.
-#'              
-#' @param var_labels  Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-#'                Plot variable names, if \eqn{TRUE}.
-#'                
-#' @param var_labels.names  Array_like, optional. \cr
-#'                User specific labels for the variables                  
-#' 
-#' @param  alpha  Scalar, optional. \cr
-#'                Alpha transparency of the arrows. 
-#' 
-#' @param  top.n  Scalar, optional. \cr
-#'                Number of (most influencial) variables to label with small circles.  
-#' 
-#' @seealso \code{\link[rsvd]{rpca}}, \code{\link[ggplot2]{ggplot}}
+#' @param rpcaObj An object returned by \code{\link{rpca}}, with
+#' real-valued directions. Complex factor maps are not supported. Scores are
+#' not needed, so fits made with \code{retx = FALSE} are supported.
 #'
-#' @author N. Benjamin Erichson, \email{erichson@berkeley.edu}
+#' @param pcs Integer vector of length two selecting the retained principal
+#' components to plot, in horizontal and vertical order. The default is
+#' \code{c(1, 2)}. Both indices must be finite integers within the retained
+#' component range.
 #'
-#' @examples #
+#' @param loadings Logical; when \code{TRUE} (the default), multiply each
+#' selected direction by its component standard deviation, so the coordinates
+#' are \code{rotation[, pcs]} scaled columnwise by \code{sdev[pcs]}.
+#' When \code{FALSE}, plot the unscaled entries of \code{rotation[, pcs]}.
 #'
-
-
+#' @param var_labels Logical; show text labels for the variables
+#' selected by \code{top.n} when \code{TRUE}. The default is \code{FALSE}.
+#'
+#' @param var_labels.names Optional character vector with one label per row of
+#' \code{rpcaObj$rotation}, in the original variable order. By default, the
+#' rotation row names are used, or sequential variable numbers when names
+#' are absent.
+#' These names identify the endpoint markers and, when requested, the text
+#' labels.
+#'
+#' @param alpha Numeric value between zero and one controlling
+#' arrow transparency. The default is \code{1} (opaque).
+#'
+#' @param top.n Positive integer limiting the number of variables
+#' selected for endpoint markers and text labels. Selection is by decreasing
+#' arrow length in the plotted two-component plane. The default, \code{NULL},
+#' selects all variables; values larger than the number of variables are
+#' clamped to that number. See Details for the marker display rule.
+#'
+#' @details The direction coefficients describe how each original variable
+#' enters a component. Multiplying a coefficient by the component standard
+#' deviation also accounts for the variation captured by that component.
+#' With \code{loadings = TRUE}, variable \eqn{j} therefore has coordinate
+#' \eqn{V_{ji}\sqrt{\lambda_i}}{V[j, i] * sqrt(lambda[i])} on component
+#' \eqn{i}, where \eqn{V} is \code{rotation} and
+#' \eqn{\lambda_i}{lambda[i]} is the corresponding eigenvalue. This is
+#' the direction entry multiplied by \code{sdev[i]}. With
+#' \code{loadings = FALSE}, the coordinates are the unscaled direction
+#' coefficients, which changes relative arrow lengths and may change which
+#' variables \code{top.n} selects.
+#'
+#' For centered variables with unit sample variance and nonzero component
+#' variance, the scaled coordinates equal the correlations with fitted scores
+#' for a deterministic SVD. A randomized fit can introduce approximation error
+#' in this interpretation. In this setting, the unit circle helps show how
+#' well the selected component plane represents each variable. With unscaled
+#' or uncentered input, the coordinates
+#' need not be correlations and the circle serves as a visual reference.
+#' Equal horizontal and vertical scales preserve the circle's shape.
+#'
+#' Every variable is shown by an arrow. To make a crowded plot easier to read,
+#' \code{top.n} limits the variables selected for endpoint markers and, when
+#' \code{var_labels = TRUE}, text labels. Selection uses arrow length within
+#' the displayed plane, so the ranking applies only to these two components.
+#' Endpoint markers are drawn only when the effective number selected is
+#' less than 50.
+#'
+#' Axis labels give each selected component's share of \code{rpcaObj$var},
+#' the total variance of the processed input. The denominator includes
+#' variance outside the retained components.
+#'
+#' @return A \pkg{ggplot2} plot object. Print the object to draw the
+#' plot, or add layers, labels, and themes with \pkg{ggplot2}.
+#'
+#' @seealso \code{\link{rpca}}, \code{\link{ggbiplot}},
+#' \code{\link{ggindplot}}, \code{\link{ggscreeplot}},
+#' \code{\link[ggplot2]{ggplot}}
+#'
+#' @author N. Benjamin Erichson
+#'
+#' @examples
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   fit <- rpca(iris[, 1:4], k = 2, retx = FALSE)
+#'   # Label the three longest arrows in the selected component plane.
+#'   print(ggcorplot(fit, var_labels = TRUE, top.n = 3))
+#' }
+#'
 #' @export
 ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var_labels.names=NULL, alpha=1, top.n=NULL) {
   
@@ -52,9 +104,11 @@ ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Check selected pcs
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
-  stopifnot(length(pcs) == 2)
-  if(max(pcs) > ncol(rpcaObj$rotation)) stop("Selected PC is not valid.")
-  if(min(pcs) < 1) stop("Selected PC is not valid.")
+  check_plot_pcs(rpcaObj, pcs)
+  check_plot_real(rpcaObj$rotation)
+  check_plot_length(var_labels.names, p, "var_labels.names")
+  if(!is.null(top.n)) check_scalar_number(top.n, "top.n", lower = 1,
+                                        integer = TRUE)
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
   # Select PCs
@@ -108,13 +162,16 @@ ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var
   # Create ggplot2::ggplot
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  
   g <- ggplot2::ggplot( circle , ggplot2::aes( x , y)  ) +
-    ggplot2::geom_path( size=0.5, colour="black" )  
+    ggplot2::geom_path( lwd=0.5, colour="black" )
 
   
   if(is.null(top.n)) top.n <- nrow(df)
   if(top.n>nrow(df)) top.n <- nrow(df)
+  selected <- if(top.n < 50 || var_labels) {
+    order(df$abs, decreasing = TRUE)[seq_len(top.n)]
+  } else integer(0)
   if(top.n < 50) {
-  g <- g + ggplot2::geom_point(data = df[order(df$abs, decreasing=TRUE)[1:top.n], ], 
+  g <- g + ggplot2::geom_point(data = df[selected, , drop = FALSE],
                                size = 4, mapping = ggplot2::aes(x = a, y = b, colour = varName ) ) +
     ggplot2::theme(legend.position = "none")
   }
@@ -123,7 +180,7 @@ ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var
   g <- g + ggplot2::geom_segment(data = df,
                                  ggplot2::aes(x = 0, y = 0, xend = a, yend = b ),
                                  arrow = grid::arrow(length = grid::unit(0.5, 'picas')),
-                                 color = 'black' ,  size = 0.5, alpha = alpha)
+                                 color = 'black' ,  lwd = 0.5, alpha = alpha)
   
   g <- g + ggplot2::coord_fixed(ratio=1) 
   g <- g + ggplot2::ggtitle('Variables factor map (PCA)')
@@ -137,7 +194,7 @@ ggcorplot <- function(rpcaObj, pcs=c(1,2),  loadings=TRUE, var_labels=FALSE, var
   if(var_labels == TRUE) {
     #df$a <- df$a  *1.1
     #df$b <- df$b  * 1.1
-    g <- g + ggplot2::geom_text(data = df[order(df$abs, decreasing=TRUE)[1:top.n], ], ggplot2::aes(label = varName, x = a, y = b,
+    g <- g + ggplot2::geom_text(data = df[selected, , drop = FALSE], ggplot2::aes(label = varName, x = a, y = b,
                                                         angle = 0, hjust = 0, vjust = 0),
                                 color = 'black', size = 4)
     

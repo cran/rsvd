@@ -1,148 +1,254 @@
-#' @title  Randomized principal component analysis (rpca).
-#
-#' @description Fast computation of the principal components analysis using the randomized singular value decomposition.
-#
-#' @details
-#' Principal component analysis is an important linear dimension reduction technique.
+#' @title Randomized principal component analysis
 #'
-#' Randomized PCA is computed via the randomized SVD algorithm (\code{\link{rsvd}}).
-#' The computational gain is substantial, if the desired number of principal components
-#' is relatively small, i.e. \eqn{k << min(m,n)}.
+#' @description Compute principal components of an optionally centered and scaled
+#' matrix using a randomized or deterministic singular value decomposition
+#' (SVD). Loadings describe the components, scores locate observations in
+#' those coordinates, and variances measure the contribution of each
+#' component.
 #'
-#' The print and summary method can be used to present the results in a nice format.
-#' A scree plot can be produced with \code{\link{ggscreeplot}}. 
-#' The individuals factor map can be produced with \code{\link{ggindplot}},
-#' and a correlation plot with \code{\link{ggcorplot}}.
+#' @details Principal components describe data along orthogonal directions in
+#' the space of the variables. Each loading vector weights the original
+#' variables to specify one direction. Retaining \code{k} components gives
+#' a low-rank approximation to the processed data. For centered data, the
+#' leading components describe directions of greatest sample variance.
 #'
-#' The predict function can be used to compute the scores of new observations. The data
-#' will automatically be centered (and scaled if requested). This is not fully supported for
-#' complex input matrices.
+#' With \code{rand = TRUE} and a supplied \code{k}, \code{rpca} uses
+#' \code{\link{rsvd}} to approximate the dominant singular subspace. Finding
+#' a small subspace first reduces the size of the subsequent SVD, with the
+#' greatest savings for large matrices and small requested ranks. Increasing
+#' \code{p} enlarges the sampled subspace, and increasing \code{q} spends
+#' more work refining it to improve accuracy. Use \code{set.seed} before
+#' fitting for reproducible random draws.
 #'
+#' \subsection{Centering and scaling}{
+#' Centering makes the components describe deviations from the training
+#' column means. Scaling adjusts the relative influence of variables with
+#' different units or magnitudes. Both operations are enabled by default.
+#' As in \code{\link[stats]{prcomp}}, \code{center = FALSE} leaves the column
+#' means unchanged and accepts either already-centered or uncentered data.
+#' Scaling remains enabled unless \code{scale = FALSE}; \code{prcomp}
+#' disables scaling by default.
 #'
-#' @param A      array_like; \cr
-#'               a numeric \eqn{(m, n)} input matrix (or data frame) to be analyzed. \cr
-#'               If the data contain \eqn{NA}s na.omit is applied.
+#' With \code{scale = TRUE}, each column is divided by the square root of
+#' its sum of squared magnitudes divided by \eqn{m-1}, after any requested
+#' centering. For centered data this is the sample standard deviation.
+#' Scale factors below \code{1e-8} are replaced by one for compatibility,
+#' so constant and nearly constant columns are retained. Complex columns
+#' use squared magnitudes and therefore have real scale factors.
+#' }
 #'
-#' @param k      integer; \cr
-#'               number of dominant principle components to be computed. It is required that \eqn{k} is smaller or equal to
-#'               \eqn{min(m,n)}, but it is recommended that \eqn{k << min(m,n)}.
+#' \subsection{Interpreting variance}{
+#' The total variance \code{var} includes every direction in the processed
+#' data, including those omitted from the approximation. It is computed as
+#' the squared Frobenius norm of the processed matrix divided by
+#' \eqn{m-1}. For uncentered data this quantity measures squared energy
+#' divided by \eqn{m-1} and includes the contribution of the column means.
+#' The proportion attributed to a retained component is its \code{eigvals}
+#' entry divided by \code{var}, so the denominator stays the same as the
+#' retained rank changes. At least two complete observations are required;
+#' variance proportions are undefined when the processed matrix has zero
+#' total variance.
+#' }
 #'
-#' @param center  bool, optional; \cr
-#'                logical value which indicates whether the variables should be
-#'                shifted to be zero centered (\eqn{TRUE} by default).
+#' \subsection{Using a fit}{
+#' Fitted scores are constructed from the SVD as \eqn{U_k D_k}{U_k D_k}.
+#' Multiplying them by the conjugate transpose of the loadings reconstructs
+#' the approximation in processed variable coordinates. Undo any scaling
+#' and centering to express it in the original input coordinates.
 #'
-#' @param scale   bool, optional; \cr
-#'                logical value which indicates whether the variables should
-#'                be scaled to have unit variance (\eqn{TRUE} by default).
+#' \code{predict(object, newdata)} applies the stored training centering and
+#' scaling, then multiplies the processed observations by
+#' \code{object$rotation}. Reusing the training means and scale factors
+#' places new observations in the same coordinate system. Supply complete
+#' rows in the training column order; the method does not reorder columns
+#' by name or omit incomplete new rows automatically.
+#' Missing values generally propagate to the scores. For compatibility,
+#' \code{NaN} entries produced or retained during scaling are replaced by zero.
+#' Prediction also works when the fit was created with \code{retx = FALSE}.
+#' For a randomized fit, projecting the training data with \code{predict}
+#' can differ from the fitted scores in \code{object$x} because the randomized subspace omits
+#' part of the data, represented by the range-finder residual.
 #'
-#' @param retx    bool, optional; \cr
-#'                logical value indicating whether the rotated variables / scores
-#'                should be returned (\eqn{TRUE} by default).
+#' The \code{print} and \code{summary} methods describe a fit.
+#' \code{\link{plot.rpca}} draws the available scree and factor plots;
+#' the individual plotting helpers can also be called directly.
+#' }
 #'
-#' @param p       integer, optional; \cr
-#'                oversampling parameter for \eqn{rsvd} (default \eqn{p=10}), see \code{\link{rsvd}}.
+#' \subsection{Sparse input}{
+#' Subtracting nonzero column means would fill in many entries of a sparse
+#' matrix. With \code{rand = TRUE} and a supplied \code{k}, \code{rpca}
+#' instead incorporates centering and scaling into its matrix products for
+#' real sparse inputs. This avoids forming the entire centered matrix.
+#' Storage includes the sparse entries and dense working factors of width
+#' up to \code{k + p}, capped by the matrix dimensions. Loadings, fitted
+#' scores, and predicted scores are dense. The computation estimates
+#' ordinary PCA loadings and imposes no sparsity constraint on them.
 #'
-#' @param q       integer, optional; \cr
-#'                number of additional power iterations for \eqn{rsvd} (default \eqn{q=1}), see \code{\link{rsvd}}.
+#' With \code{rand = FALSE} or \code{k = NULL}, a sparse input is converted
+#' to a dense matrix for the deterministic SVD.
+#' }
 #'
-#' @param rand   bool, optional; \cr
-#'               if (\eqn{TRUE}), the \eqn{rsvd} routine is used, otherwise \eqn{svd} is used.
+#' @param A A numeric matrix or data frame with observations in rows and variables
+#' in columns. Dense real or complex data and real sparse matrices from
+#' \pkg{Matrix} are supported. Rows containing missing values are omitted
+#' with a warning; all remaining values must be finite. At least two rows
+#' must remain. In the dimensions below, \eqn{m} is the number of retained
+#' observations and \eqn{n} is the number of variables.
 #'
+#' @param k A positive integer giving the number of principal components to return.
+#' A fractional value of at least one is truncated toward zero.
+#' Values greater than \code{min(m, n)} are reduced to that limit. The default,
+#' \code{NULL}, returns \code{min(m, n)} components using the deterministic
+#' SVD. The randomized method is most useful when \code{k} is much smaller
+#' than both matrix dimensions.
 #'
-#' @return \code{rpca} returns a list with class \eqn{rpca} containing the following components:
+#' @param center Logical; subtract the training column means before computing the SVD
+#' (default \code{TRUE}). \code{FALSE} leaves the column means unchanged.
+#'
+#' @param scale Logical; divide each processed column by its scale factor (default
+#' \code{TRUE}). This gives unit sample variance for centered columns whose
+#' scale factors are at least \code{1e-8}; see Details.
+#'
+#' @param retx Logical; return the fitted component scores in \code{x} (default
+#' \code{TRUE}). With \code{FALSE}, \code{x} is \code{NULL}; loadings and
+#' new-data prediction remain available.
+#'
+#' @param p A nonnegative integer oversampling parameter for \code{\link{rsvd}}
+#' (default \code{10}). Ignored for the deterministic SVD.
+#'
+#' @param q A nonnegative integer number of power iterations for
+#' \code{\link{rsvd}} (default \code{2}). Ignored for the deterministic SVD.
+#'
+#' @param rand Logical; use the randomized SVD when \code{TRUE} and \code{k} is
+#' supplied. With \code{FALSE}, or \code{k = NULL}, use the deterministic
+#' SVD. Requesting fewer components does not make the deterministic backend
+#' a partial SVD algorithm.
+#'
+#' @param object,x An object returned by \code{rpca}.
+#'
+#' @param newdata A numeric matrix, data frame, or real sparse \pkg{Matrix} containing
+#' new observations. Supply the same variables in the same column order as
+#' the training data, preferably with no missing values; see Details.
+#'
+#' @param ... Additional arguments; currently ignored by the \code{print},
+#' \code{summary}, and \code{predict} methods.
+#'
+#' @return \code{rpca} returns a list of class \code{"rpca"} with these components:
 #' \describe{
-#'    \item{rotation}{  array_like; \cr
-#'                      the rotation (eigenvectors); \eqn{(n, k)} dimensional array.
-#'    }
+#'   \item{rotation}{A dense \eqn{n} by \eqn{k} matrix of orthonormal
+#'     loadings (exact or approximate right singular vectors of the processed
+#'     data).}
+#'   \item{eigvals}{A numeric vector of length \eqn{k} containing the
+#'     retained squared singular values divided by \eqn{m-1}. These estimate
+#'     the leading eigenvalues of the processed cross-product matrix divided
+#'     by \eqn{m-1}, which is the sample covariance matrix for centered data.}
+#'   \item{sdev}{A numeric vector of length \eqn{k} containing the square
+#'     roots of \code{eigvals}.}
+#'   \item{var}{The squared Frobenius norm of the processed matrix divided
+#'     by \eqn{m-1}, including directions not returned. For centered data
+#'     this is the total sample variance.}
+#'   \item{x}{A dense \eqn{m} by \eqn{k} matrix of fitted scores, or
+#'     \code{NULL} when \code{retx = FALSE}. Rows correspond to complete
+#'     observations retained from the input.}
+#'   \item{center, scale}{Numeric vectors containing the training column
+#'     means and scale factors, respectively, or \code{FALSE} when the
+#'     corresponding operation was disabled. Centers can be complex;
+#'     scale factors are real.}
+#' }
+#' The \code{predict} method returns a dense matrix with one row per new
+#' observation and one column per retained component. The \code{summary}
+#' method returns a numeric matrix with rows for explained variance, standard
+#' deviation, proportion of variance, and cumulative proportion. Its entries
+#' are rounded to three decimal places. The \code{print} method displays
+#' standard deviations, eigenvalues, and loadings, and invisibly returns the
+#' displayed loading matrix.
 #'
-#'    \item{eigvals}{  array_like; \cr
-#'                     eigenvalues; \eqn{k} dimensional vector.
-#'    }
-#'    \item{sdev}{     array_like; \cr
-#'                     standard deviations of the principal components; \eqn{k} dimensional vector.
-#'    }
-#'    \item{x}{        array_like; \cr
-#'                     the scores / rotated data; \eqn{(m, k)} dimensional array.
-#'    }
-#'    \item{center, scale}{  array_like; \cr
-#'                     the centering and scaling used.
-#'    }
-#'}
+#' @note Singular vectors are defined only up to sign (or a constant of modulus
+#' one for complex data). With repeated singular values, any orthonormal
+#' basis of the corresponding subspace is valid. Individual loading vectors
+#' can therefore differ between runs or implementations without changing
+#' the represented subspace.
 #'
+#' @references \itemize{
+#'   \item N. B. Erichson, S. Voronin, S. L. Brunton and J. N. Kutz. 2019.
+#'   Randomized Matrix Decompositions Using R.
+#'   Journal of Statistical Software, 89(11), 1--48.
+#'   \doi{10.18637/jss.v089.i11}.
+#'   \item N. Halko, P. G. Martinsson and J. A. Tropp. 2011.
+#'   Finding Structure with Randomness: Probabilistic Algorithms for
+#'   Constructing Approximate Matrix Decompositions.
+#'   SIAM Review, 53(2), 217--288.
+#'   \doi{10.1137/090771806}.
+#' }
 #'
-#' @note  The principal components are not unique and only defined up to sign
-#' (a constant of modulus one in the complex case) and so may differ between different
-#'  PCA implementations.
+#' @seealso \code{\link{rsvd}}, \code{\link[stats]{prcomp}},
+#' \code{\link{plot.rpca}}, \code{\link{ggscreeplot}},
+#' \code{\link{ggindplot}}, \code{\link{ggcorplot}},
+#' \code{\link{rrpca}} for a low-rank plus sparse decomposition.
 #'
-#' Similar to \code{\link{prcomp}} the variances are computed with the usual divisor N - 1.
+#' @author N. Benjamin Erichson
 #'
+#' @examples # Fit two components and project observations held out from the fit.
+#' training <- log(as.matrix(iris[1:145, 1:4]))
+#' new_data <- log(as.matrix(iris[146:150, 1:4]))
+#' set.seed(42)
+#' fit <- rpca(training, k = 2)
+#' summary(fit)
+#' predict(fit, new_data)
 #'
-#' @references
-#' \itemize{
-#'  \item [1] N. B. Erichson, S. Voronin, S. L. Brunton and J. N. Kutz. 2019.
-#'        Randomized Matrix Decompositions Using {R}. 
-#'        Journal of Statistical Software, 89(11), 1-48.
-#'         \doi{10.18637/jss.v089.i11}.
-#' 
-#'   \item  [2] N. Halko, P. Martinsson, and J. Tropp.
-#'          "Finding structure with randomness: probabilistic
-#'          algorithms for constructing approximate matrix
-#'          decompositions" (2009).
-#'          (available at arXiv \url{https://arxiv.org/abs/0909.4061}).
-#'}
+#' # Reconstruct in input coordinates (here, log measurements).
+#' reconstructed <- fit$x %*% Conj(t(fit$rotation))
+#' reconstructed <- sweep(reconstructed, 2, fit$scale, "*")
+#' reconstructed <- sweep(reconstructed, 2, fit$center, "+")
 #'
+#' # k = NULL uses the deterministic SVD and returns all components.
+#' full <- rpca(training)
+#' length(full$sdev)
 #'
-#' @author N. Benjamin Erichson, \email{erichson@berkeley.edu}
+#' # Sparse input: implicit preprocessing, with training scores omitted.
+#' A <- Matrix::bdiag(outer(1:12, 1:6), outer(1:12, 6:1))
+#' set.seed(42)
+#' sparse_fit <- rpca(A, k = 2, retx = FALSE)
+#' predict(sparse_fit, A[1:2, , drop = FALSE])
 #'
-#' @seealso \code{\link{ggscreeplot}}, \code{\link{ggindplot}},
-#'          \code{\link{ggcorplot}}, \code{\link{plot.rpca}},
-#'          \code{\link{predict}},   \code{\link{rsvd}}
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   plot(fit, type = "ratio", groups = iris$Species[1:145],
+#'        ind_labels = FALSE, ellipse = FALSE)
+#' }
 #'
-#' @examples
-#'
-#'library('rsvd')
-#'#
-#'# Load Edgar Anderson's Iris Data
-#'#
-#'data('iris')
-#'
-#'#
-#'# log transform
-#'#
-#'log.iris <- log( iris[ , 1:4] )
-#'iris.species <- iris[ , 5]
-#'
-#'#
-#'# Perform rPCA and compute only the first two PCs
-#'#
-#'iris.rpca <- rpca(log.iris, k=2)
-#'summary(iris.rpca) # Summary
-#'print(iris.rpca) # Prints the rotations
-#'
-#'#
-#'# Use rPCA to compute all PCs, similar to \code{\link{prcomp}}
-#'#
-#'iris.rpca <- rpca(log.iris)
-#'summary(iris.rpca) # Summary
-#'print(iris.rpca) # Prints the rotations
-#'plot(iris.rpca) # Produce screeplot, variable and individuls factor maps.
-#'
-
 #' @export
 rpca <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=2, rand = TRUE) UseMethod("rpca")
 
 #' @export
 rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=2, rand = TRUE) {
+  check_flag(center, "center")
+  check_flag(scale, "scale")
+  check_flag(retx, "retx")
+  check_flag(rand, "rand")
+  if(!is.null(k)) check_scalar_number(k, "k", lower = 1)
+  if(rand && !is.null(k)) {
+    check_scalar_number(p, "p", lower = 0, integer = TRUE)
+    check_scalar_number(q, "q", lower = 0, integer = TRUE)
+  }
   
-  A <- as.matrix(A)
+  sparse <- inherits(A, "sparseMatrix") && !is.null(k) && rand == TRUE
+  if(!sparse) A <- as.matrix(A)
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Checks
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if (any(is.na(A))) {
     warning("Missing values are omitted: na.omit(A).")
-    A <- stats::na.omit(A)
+    if(sparse) {
+      A <- A[Matrix::rowSums(is.na(A)) == 0, , drop=FALSE]
+    } else A <- stats::na.omit(A)
   }   
+  # The SVD or projected QR checks non-finite processed data. An additional
+  # input scan costs a substantial fraction of a small-rank decomposition.
+  check_matrix_input(A, finite = FALSE)
+  if(nrow(A) < 2L) {
+    stop("PCA requires at least two complete observations.")
+  }
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Init rpca object
@@ -163,7 +269,7 @@ rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(is.null(k)) rand <- FALSE
   if(is.null(k)) k <- min(n,m)
-  if(k > min(n,m)) k <- min(n,m)
+  k <- floor(min(k, n, m))
   if(k<1) stop("Target rank is not valid!")
   
   
@@ -171,20 +277,49 @@ rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Center/Scale data
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if(center == TRUE) {
-    rpcaObj$center <- colMeans(A)
-    A <- sweep(A, MARGIN = 2, STATS = rpcaObj$center, FUN = "-", check.margin = TRUE)
-    #A <- H(H(A) - rpcaObj$center)
-  } else { rpcaObj$center <- FALSE }
-  
-  if(scale == TRUE) {
-    rpcaObj$scale <- sqrt(colSums(A**2) / (m-1))
-    if(is.complex(rpcaObj$scale)) { rpcaObj$scale[Re(rpcaObj$scale) < 1e-8 ] <- 1+0i  
-    } else {rpcaObj$scale[rpcaObj$scale < 1e-8] <- 1}
-    A <- sweep(A, MARGIN = 2, STATS = rpcaObj$scale, FUN = "/", check.margin = TRUE)
-    #A <- H(H(A) / rpcaObj$scale)
-    #A[is.nan(A)] <- 0
-  } else { rpcaObj$scale <- FALSE }
+  if(sparse) {
+    A <- rpca_sparse_numeric(A)
+    rpcaObj$center <- if(center == TRUE) rpca_sparse_means(A) else FALSE
+    squared_norms <- rpca_sparse_norms(A, rpcaObj$center)
+    if(scale == TRUE) {
+      rpcaObj$scale <- sqrt(squared_norms / (m-1))
+      rpcaObj$scale[rpcaObj$scale < 1e-8] <- 1
+      rpcaObj$var <- sum(squared_norms / rpcaObj$scale^2) / (m-1)
+    } else {
+      rpcaObj$scale <- FALSE
+      rpcaObj$var <- sum(squared_norms) / (m-1)
+    }
+    operators <- rpca_sparse_products(A, rpcaObj$center, rpcaObj$scale)
+    if(!is.finite(rpcaObj$var)) {
+      rpcaObj$var <- sum(operators$squared_norms()) / (m-1)
+    }
+  } else {
+    if(center == TRUE) {
+      rpcaObj$center <- colMeans(A)
+      A <- sweep(A, MARGIN = 2, STATS = rpcaObj$center, FUN = "-", check.margin = TRUE)
+    } else { rpcaObj$center <- FALSE }
+
+    if(scale == TRUE) {
+      squared <- if(is.complex(A)) Mod(A)**2 else A**2
+      squared_norms <- colSums(squared)
+      rm(squared)
+      rpcaObj$scale <- sqrt(squared_norms / (m-1))
+      rpcaObj$scale[rpcaObj$scale < 1e-8] <- 1
+      A <- sweep(A, MARGIN = 2, STATS = rpcaObj$scale, FUN = "/", check.margin = TRUE)
+      rpcaObj$var <- sum(squared_norms / rpcaObj$scale^2) / (m-1)
+      if(!is.finite(rpcaObj$var)) {
+        rpcaObj$var <- (if(is.complex(A)) {
+          norm(Re(A), "F")^2 + norm(Im(A), "F")^2
+        } else norm(A, "F")^2) / (m-1)
+      }
+    } else {
+      rpcaObj$scale <- FALSE
+      squared_norm <- if(is.complex(A)) {
+        norm(Re(A), "F")^2 + norm(Im(A), "F")^2
+      } else norm(A, "F")^2
+      rpcaObj$var <- squared_norm / (m-1)
+    }
+  }
   
   
   
@@ -198,8 +333,13 @@ rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=
   }
   
   out <- switch(svdalg,
-                svd = svd(A, nu = k, nv = k),
-                rsvd = rsvd(A, k = k, p = p, q = q),
+                svd = svd(A, nu = if(retx) k else 0, nv = k),
+                rsvd = if(sparse) {
+                  rsvd_compute(A, k = k, p = p, q = q,
+                               nu = if(retx) k else 0, nv = k,
+                               operators = operators)
+                } else rsvd_compute(A, k = k, p = p, q = q,
+                                     nu = if(retx) k else 0, nv = k),
                 stop("Selected SVD algorithm is not supported!")
   )
   
@@ -217,8 +357,6 @@ rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=
   # Explained variance and explained variance ratio
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   rpcaObj$sdev <-  sqrt( rpcaObj$eigvals )
-  rpcaObj$var <- sum( apply( Re(A) , 2, stats::var ) )
-  if(is.complex(A)) rpcaObj$var <- Re(rpcaObj$var + sum( apply( Im(A) , 2, stats::var ) ))
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Add row and col names
@@ -245,6 +383,8 @@ rpca.default <- function(A, k=NULL, center=TRUE, scale=TRUE, retx=TRUE, p=10, q=
 }#End rPCA
 
 
+#' @rdname rpca
+#' @method print rpca
 #' @export
 print.rpca <- function(x , ...) {
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,6 +398,8 @@ print.rpca <- function(x , ...) {
   print(round(x$rotation, 3))
 }
 
+#' @rdname rpca
+#' @method summary rpca
 #' @export
 summary.rpca <- function( object , ... )
 {
@@ -296,12 +438,30 @@ print.summary.rpca <- function( x , ... )
   cat("\n")
 }
 
+#' @rdname rpca
 #' @export
 predict.rpca <- function( object, newdata, ...)
 {
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Predict
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if(is.data.frame(newdata) || !inherits(newdata, "Matrix")) {
+    newdata <- as.matrix(newdata)
+  }
+  if(length(dim(newdata)) != 2L || ncol(newdata) != nrow(object$rotation)) {
+    stop("newdata must have the same number of columns as the training data.")
+  }
+  if(inherits(newdata, "sparseMatrix") && !is.complex(object$center) &&
+     !is.complex(object$rotation)) {
+    operators <- rpca_sparse_products(rpca_sparse_numeric(newdata),
+                                      object$center, object$scale,
+                                      replace_nan = !is.logical(object$scale))
+    x <- operators$forward(as.matrix(object$rotation))
+    rownames(x) <- rownames(newdata)
+    return(x)
+  }
+
+  newdata <- as.matrix(newdata)
   if(!is.logical(object$center)) {
     #newdata <- H(H(newdata) - object$center)
     newdata <- sweep(newdata, MARGIN = 2, STATS = object$center, FUN = "-", check.margin = TRUE)

@@ -1,142 +1,184 @@
-#' @title  Randomized interpolative decomposition (ID).
-#
-#' @description Randomized interpolative decomposition.
-#
+#' @title Randomized interpolative decomposition (ID)
+#'
+#' @description
+#' Approximate a matrix by expressing its columns or rows as linear
+#' combinations of a selected subset of the original data. The selected data
+#' and the coefficients of these combinations form an interpolative
+#' decomposition. A randomized sketch can reduce the work needed to choose
+#' the subset when the target rank is small.
+#'
+#' @usage
+#' rid(A, k = NULL, mode = "column", p = 10, q = 0,
+#'     idx_only = FALSE, rand = TRUE)
+#'
+#' @param A A real or complex numeric matrix, a numeric data frame, or a matrix
+#' from the \pkg{Matrix} package. Rows containing missing values are omitted
+#' with a warning; the remaining entries must be finite.
+#' @param k A positive integer giving the number of columns or rows to select.
+#' The default, \code{NULL}, uses \code{min(dim(A))} after missing rows are
+#' omitted. Larger requests are capped at this value. Use a substantially
+#' smaller rank to obtain a compressed approximation.
+#' A fractional value of at least one is truncated toward zero.
+#' @param mode Either \code{"column"} (the default) or \code{"row"}, specifying
+#' which type of subset to select.
+#' @param p A non-negative integer oversampling parameter, used only when
+#' \code{rand = TRUE}. The default is 10. The sketch width is bounded by the
+#' matrix dimensions.
+#' @param q A non-negative integer number of power iterations, used only when
+#' \code{rand = TRUE}. The default is zero.
+#' @param idx_only Logical. If \code{TRUE}, leave both selected-data components
+#' \code{C} and \code{R} as \code{NULL}. The interpolation matrix \code{Z},
+#' indices and scores are still computed and returned. The default is
+#' \code{FALSE}.
+#' @param rand Logical. If \code{TRUE} (the default), select the subset using a
+#' randomized QB sketch. If \code{FALSE}, use column-pivoted QR on the full
+#' input, or its conjugate transpose for a row ID.
+#'
 #' @details
-#' Algorithm for computing the ID of a rectangular \eqn{(m, n)} matrix \eqn{A}, with target rank 
-#' \eqn{k << min(m,n)}. The input matrix is factored as 
-#' 
-#' \deqn{A = C * Z} 
-#' 
-#' using the column pivoted QR decomposition. The factor matrix \eqn{C} is formed as a subset of 
-#' columns of \eqn{A}, also called the partial column skeleton. 
-#' If \code{mode='row'}, then the input matrix is factored as 
-#' 
-#' \deqn{A = Z * R} 
-#' 
-#' using the row pivoted QR decomposition. The factor matrix \eqn{R} is now formed as
-#' a subset of rows of \eqn{A}, also called the partial row skeleton. 
-#' The factor matrix \eqn{Z} contains a \eqn{(k, k)} identity matrix as a submatrix, 
-#' and is well-conditioned. 
-#' 
-#' If \eqn{rand='TRUE'} a probabilistic strategy is used to compute the decomposition, otherwise a
-#' deterministic algorithm is used. 
+#' An interpolative decomposition (ID) retains actual columns or rows, so
+#' the selected subset can be examined in the original units of the data.
+#' This is useful when the factors should correspond to measured variables
+#' or observations. An orthonormal representation of the data is available
+#' through \code{\link{rsvd}}.
 #'
+#' A column ID combines the selected columns with coefficients that
+#' approximate each input column. For an \eqn{m \times n}{m by n} matrix,
+#' this gives
+#' \deqn{A \approx C Z.}{A is approximately C \%*\% Z.}
+#' Here \code{C = A[, idx, drop = FALSE]} contains \code{k} actual columns,
+#' and each column of \code{Z} gives the coefficients for one input column.
+#' Its selected columns satisfy \code{Z[, idx, drop = FALSE] = diag(k)},
+#' so the selected data columns are reproduced exactly. A row ID applies the
+#' same idea to rows and has the form
+#' \deqn{A \approx Z R,}{A is approximately Z \%*\% R,}
+#' \code{R = A[idx, , drop = FALSE]} contains the selected rows, and
+#' \code{Z[idx, , drop = FALSE] = diag(k)}. Dimensions and indices in these
+#' expressions refer to the input after missing-row omission.
 #'
-#' @param A   array_like; \cr
-#'            numeric \eqn{(m, n)} input matrix (or data frame). \cr
-#'            If the data contain \eqn{NA}s na.omit is applied.
+#' Selection depends on how the data are represented. Centering or rescaling
+#' changes the matrix used to choose the subset and can therefore change the
+#' selected variables or observations. The function uses the supplied data
+#' without automatic centering or scaling.
 #'
-#' @param k   integer, optional; \cr
-#'            number of rows/columns to be selected. 
-#'            It is required that \eqn{k} is smaller or equal to \eqn{min(m,n)}.
+#' To reduce the work of subset selection, the randomized algorithm first
+#' compresses the input with \code{\link{rqb}}. It applies column-pivoted QR
+#' to the projected factor and selects the first \code{k} columns in the
+#' resulting pivot order. A row ID applies this procedure to the conjugate
+#' transpose, so the pivots identify input rows. Oversampling and power
+#' iterations can improve the subspace used for selection, at additional time
+#' and memory cost. The supplied parameters remain fixed throughout the
+#' calculation; the algorithm does not adjust them to meet an error tolerance.
 #'
-#' @param mode  string c('column', 'row'), optional; \cr
-#'              columns or rows ID.
-#'  
-#' @param p    integer, optional; \cr
-#'             oversampling parameter (default \eqn{p=10}).
+#' The interpolation coefficients are computed using a numerical pseudoinverse
+#' of the selected QR block. This permits requests for more columns than the
+#' numerical rank, including cases where the selected columns are dependent.
+#' Neither column-pivoted QR nor this pseudoinverse guarantees an optimal
+#' rank-\code{k} approximation or uniformly small coefficients. Assess the
+#' reconstruction error to determine whether the selected subset meets the
+#' accuracy needs of the application. The QR scores describe the selection
+#' procedure and have no interpretation as statistical importance scores or
+#' probabilities.
 #'
-#' @param q    integer, optional. \cr
-#'             number of additional power iterations (default \eqn{q=0}).
+#' With sparse \pkg{Matrix} input, the randomized algorithm forms its dense
+#' sketch using sparse matrix products. Returned factors are ordinary dense R
+#' matrices. With \code{rand = FALSE}, the input is converted to a dense matrix
+#' before QR. Forming \code{C \%*\% Z} or \code{Z \%*\% R} also produces a
+#' dense reconstruction.
 #'
-#' @param idx_only  bool, optional; \cr
-#'              if (\eqn{TRUE}), the index set \code{idx} is returned, but not the matrix \code{C} or \code{R}. 
-#'              This is more memory efficient, when dealing with large-scale data. 
-#'              
-#' @param rand  bool, optional; \cr
-#'              if (\eqn{TRUE}), a probabilistic strategy is used, otherwise a deterministic algorithm is used.                
+#' Use \code{set.seed()} before a randomized call for a repeatable result in
+#' the same computational environment. Pivot choices can differ across
+#' numerical libraries when columns have similar scores.
 #'
-#'
-#'
-#' @return \code{rid} returns a list containing the following components:
+#' @return
+#' A list of class \code{"rid"} with the following components. Here \code{m}
+#' is the number of complete input rows and \code{k} is the effective rank
+#' after clamping.
 #' \describe{
-#'    \item{C}{ array_like; \cr
-#'              column subset \eqn{C = A[,idx]}, if \code{mode='column'}; array with dimensions \eqn{(m, k)}.
-#'    }
-#'
-#'    \item{R}{ array_like; \cr
-#'              row subset \eqn{R = A[idx, ]}, if \code{mode='row'}; array with dimensions \eqn{(k, n)}.
-#'    }
-#'    
-#'    \item{Z}{ array_like; \cr
-#'             well conditioned matrix; Depending on the selected mode, this is an 
-#'             array with dimensions \eqn{(k,n)} or \eqn{(m,k)}.
-#'    }
-#'    
-#'    \item{idx}{ array_like; \cr
-#'               index set of the \eqn{k} selected columns or rows used to form \eqn{C} or \eqn{R}. 
-#'    }   
-#'   
-#'    \item{pivot}{ array_like; \cr
-#'                information on the pivoting strategy used during the decomposition. 
-#'    }  
-#'      
-#'    \item{scores}{ array_like; \cr
-#'                  scores of the columns or rows of the input matrix \eqn{A}.
-#'    } 
-#'                   
-#'    \item{scores.idx}{ array_like; \cr
-#'                  scores of the \eqn{k} selected columns or rows in \eqn{C} or \eqn{R}.                    
-#'    }
-#'}
+#'   \item{C}{The selected \code{m} by \code{k} column matrix for a column ID,
+#'   or \code{NULL} for a row ID or when \code{idx_only = TRUE}.}
+#'   \item{R}{The selected \code{k} by \code{n} row matrix for a row ID,
+#'   or \code{NULL} for a column ID or when \code{idx_only = TRUE}.}
+#'   \item{Z}{The dense interpolation matrix, with dimensions \code{k} by
+#'   \code{n} for a column ID or \code{m} by \code{k} for a row ID.}
+#'   \item{idx}{An integer vector of length \code{k} containing the selected
+#'   column or row indices, in selection order. Row indices refer to the
+#'   matrix after rows with missing values have been omitted.}
+#'   \item{pivot}{The full QR column-pivot permutation, or the corresponding
+#'   row permutation for a row ID. Its first \code{k} entries are \code{idx}.}
+#'   \item{scores}{Absolute diagonal entries of the QR factor, mapped back to
+#'   input column or row order. Entries without a corresponding QR diagonal
+#'   are \code{NA}, which can occur for rectangular inputs or reduced sketches.}
+#'   \item{scores.idx}{The QR scores of the selected subset, in the same
+#'   order as \code{idx}.}
+#'   \item{mode, rand}{The selection mode and randomization setting.}
+#' }
 #'
 #' @references
-#' \itemize{
-#'   \item  [1] N. Halko, P. Martinsson, and J. Tropp.
-#'          "Finding structure with randomness: probabilistic
-#'          algorithms for constructing approximate matrix
-#'          decompositions" (2009).
-#'          (available at arXiv \url{https://arxiv.org/abs/0909.4061}).
-#'  \item [2] N. B. Erichson, S. Voronin, S. L. Brunton and J. N. Kutz. 2019.
-#'        Randomized Matrix Decompositions Using {R}. 
-#'        Journal of Statistical Software, 89(11), 1-48.
-#'         \doi{10.18637/jss.v089.i11}.
-#'}
+#' N. Halko, P. G. Martinsson, and J. A. Tropp (2009).
+#' Finding structure with randomness: probabilistic algorithms for constructing
+#' approximate matrix decompositions. \url{https://arxiv.org/abs/0909.4061}.
 #'
+#' N. B. Erichson, S. Voronin, S. L. Brunton, and J. N. Kutz (2019).
+#' Randomized Matrix Decompositions Using R.
+#' \emph{Journal of Statistical Software}, 89(11), 1--48.
+#' \doi{10.18637/jss.v089.i11}.
 #'
-#' @author N. Benjamin Erichson, \email{erichson@uw.edu}
-#'
-#' @seealso \code{\link{rcur}},
-#'
+#' @author N. Benjamin Erichson
+#' @seealso \code{\link{rcur}}, \code{\link{rqb}}, \code{\link{rsvd}}
 #'
 #' @examples
-#' \dontrun{
-#' # Load test image
-#' data("tiger")
+#' set.seed(42)
+#' A <- matrix(rnorm(60 * 5), 60, 5) %*% matrix(rnorm(5 * 35), 5, 35)
+#' A <- A + 0.01 * matrix(rnorm(length(A)), nrow(A), ncol(A))
 #'
-#' # Compute (column) randomized interpolative decompsition
-#' # Note that the image needs to be transposed for correct plotting
-#' out <- rid(t(tiger), k = 150)
+#' # Column ID: all columns are approximated using five original columns.
+#' fit <- rid(A, k = 5)
+#' A_id <- fit$C %*% fit$Z
+#' norm(A - A_id, "F") / norm(A, "F")
+#' fit$idx
+#' fit$Z[, fit$idx, drop = FALSE]
 #'
-#' # Show selected columns 
-#' tiger.partial <- matrix(0, 1200, 1600)
-#' tiger.partial[,out$idx] <- t(tiger)[,out$idx]
-#' image(t(tiger.partial), col = gray((0:255)/255), useRaster = TRUE)
+#' # Row ID has the opposite factor order.
+#' row_fit <- rid(A, k = 5, mode = "row")
+#' norm(A - row_fit$Z %*% row_fit$R, "F") / norm(A, "F")
 #'
-#' # Reconstruct image
-#' tiger.re <- t(out$C %*% out$Z)
-#'
-#' # Compute relative error
-#' print(norm(tiger-tiger.re, 'F') / norm(tiger, 'F')) 
-#'
-#' # Plot approximated image
-#' image(tiger.re, col = gray((0:255)/255))
-#' }
+#' # Retain indices and coefficients without returning the selected data.
+#' small <- rid(A, k = 5, idx_only = TRUE, rand = FALSE)
+#' is.null(small$C)
+#' dim(small$Z)
 
 #' @export
 rid <- function(A, k = NULL, mode = 'column', p = 10, q = 0, idx_only = FALSE, rand = TRUE) UseMethod("rid")
 
 #' @export
 rid.default <- function(A, k = NULL, mode = 'column', p = 10, q = 0, idx_only = FALSE, rand = TRUE) {
+  check_flag(idx_only, "idx_only")
+  check_flag(rand, "rand")
+  if(!is.character(mode) || length(mode) != 1L || is.na(mode) ||
+     !mode %in% c("column", "row")) {
+    stop("mode must be either 'column' or 'row'.")
+  }
+  if(!is.null(k)) check_scalar_number(k, "k", lower = 1)
+  if(rand) {
+    check_scalar_number(p, "p", lower = 0, integer = TRUE)
+    check_scalar_number(q, "q", lower = 0, integer = TRUE)
+  }
 
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Checks
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  if(is.data.frame(A)) A <- as.matrix(A)
   if (any(is.na(A))) {
     warning("Missing values are omitted: na.omit(A).")
-    A <- stats::na.omit(A)
+    if(inherits(A, "Matrix")) {
+      A <- A[Matrix::rowSums(is.na(A)) == 0, , drop=FALSE]
+    } else {
+      A <- stats::na.omit(A)
+    }
   }     
+  # Randomized QB checks the projected factors. Deterministic LAPACK QR can
+  # otherwise return non-finite factors, including for a full-width ID.
+  check_matrix_input(A, finite = !rand)
 
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Init id object
@@ -163,21 +205,21 @@ rid.default <- function(A, k = NULL, mode = 'column', p = 10, q = 0, idx_only = 
   # Set target rank
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(is.null(k)) k <- n
-  if(k > min(m,n)) k <- min(m,n)
+  k <- floor(min(k, m, n))
   if(k < 1) stop("Target rank is not valid!")
 
 
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  # Compute interpolative decompositon
+  # Compute interpolative decomposition
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
   # Pivoted QR decomposition
   if(rand == TRUE) { 
     out_rqb <- rqb(A, k = k, p = p, q = q)
-    out <- qr(out_rqb$B, LAPACK=TRUE) 
+    out <- qr(as.matrix(out_rqb$B), LAPACK=TRUE)
   } else { 
-    out <- qr(A, LAPACK=TRUE) 
+    out <- qr(as.matrix(A), LAPACK=TRUE)
   }
     
     
@@ -199,12 +241,13 @@ rid.default <- function(A, k = NULL, mode = 'column', p = 10, q = 0, idx_only = 
   
   # Compute Z
   if(k == n) {
-    V = pinv(S[1:k, 1:k])
+    idObj$Z <- diag(k)
   }else{
-    V = pinv(S[1:k, 1:k]) %*% S[1:k, (k+1):n] 
+    V <- pinv(S[1:k, 1:k, drop=FALSE]) %*%
+      S[1:k, (k+1):n, drop=FALSE]
+    idObj$Z <- cbind(diag(k), V)
   }
-  idObj$Z = cbind(diag(k), V) 
-  idObj$Z = matrix(idObj$Z[, ordered.pivot], nrow = k, ncol = n)  
+  idObj$Z = matrix(idObj$Z[, ordered.pivot, drop=FALSE], nrow = k, ncol = n)
 
   if(mode == 'row') {
     idObj$Z = H(idObj$Z)
@@ -214,14 +257,10 @@ rid.default <- function(A, k = NULL, mode = 'column', p = 10, q = 0, idx_only = 
   # Create column / row subset
   if(idx_only == FALSE) {
     if(mode == 'column') {
-      idObj$C = matrix(A[, idObj$idx], nrow = m, ncol = k)
-      colnames(idObj$C) <- colnames(A)[idObj$idx]
-      rownames(idObj$C) <- rownames(A)
+      idObj$C = as.matrix(A[, idObj$idx, drop=FALSE])
     }  
     if(mode == 'row')  {
-      idObj$R = H(matrix(A[, idObj$idx], nrow = m, ncol = k))  
-      rownames(idObj$R) <- colnames(A)[idObj$idx]
-      colnames(idObj$R) <- rownames(A)
+      idObj$R = H(as.matrix(A[, idObj$idx, drop=FALSE]))
       
     }
   }

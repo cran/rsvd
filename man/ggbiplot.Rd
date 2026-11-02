@@ -2,7 +2,7 @@
 % Please edit documentation in R/ggbiplot.R
 \name{ggbiplot}
 \alias{ggbiplot}
-\title{Biplot for \code{\link[rsvd]{rpca}} using \code{\link[ggplot2]{ggplot}}.}
+\title{PCA scores and variable directions in one plot}
 \usage{
 ggbiplot(
   rpcaObj,
@@ -19,50 +19,111 @@ ggbiplot(
 )
 }
 \arguments{
-\item{rpcaObj}{Object returned by the \code{\link[rsvd]{rpca}} function.}
+\item{rpcaObj}{An object returned by \code{\link{rpca}}, with
+real-valued scores and directions. Complex factor maps are not supported.
+Fit with \code{retx = TRUE} so that \code{rpcaObj$x} is available.}
 
-\item{pcs}{Array_like. \cr
-An array with two values indicating the two PCs which should be used for plotting. 
-By default the first two PCs are used, e.g., \eqn{c(1,2)}.}
+\item{pcs}{Integer vector of length two selecting the retained principal
+components to plot, in horizontal and vertical order. The default is
+\code{c(1, 2)}. Both indices must be finite integers within the retained
+component range.}
 
-\item{loadings}{Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-If \eqn{TRUE}, the eigenvectors
-are unit scaled by the square root of the eigenvalues \eqn{W = W * diag(sqrt(eigvals))}.}
+\item{loadings}{Logical; when \code{TRUE} (the default), multiply each
+selected direction by its component standard deviation, so the coordinates
+are \code{rotation[, pcs]} scaled columnwise by \code{sdev[pcs]}.
+When \code{FALSE}, plot the unscaled entries of \code{rotation[, pcs]}.}
 
-\item{groups}{Factor, optional. \cr
-Factor indicating groups.}
+\item{groups}{Optional factor with one entry for each row of \code{rpcaObj$x},
+in the same order. The length must match the number of score rows;
+shorter inputs are not recycled. Groups control point colours and, when
+requested, ellipses. The default, \code{NULL}, uses one colour and draws
+no ellipse.
+If \code{rpca} omitted incomplete observations, supply groups for the
+retained rows only.}
 
-\item{alpha}{Scalar, optional. \cr
-Alpha transparency for scatter plot.}
+\item{alpha}{Numeric value between zero and one controlling point
+transparency, with zero fully transparent and one opaque. The default is
+\code{0.6}.}
 
-\item{ellipse}{Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-Draw a 1sd data ellipse for each group, if \eqn{TRUE}.}
+\item{ellipse}{Logical; draw a filled data ellipse for each supplied group
+when \code{TRUE} (the default). The defaults of
+\code{\link[ggplot2]{stat_ellipse}} give a multivariate-t ellipse at
+level \code{0.95}. See Details for its interpretation.}
 
-\item{alpha.ellipse}{Scalar, optional. \cr
-Alpha transparency for ellipse.}
+\item{alpha.ellipse}{Numeric value between zero and one controlling ellipse
+transparency. The default is \code{0.2}; ignored when no ellipse is drawn.}
 
-\item{var_labels}{Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-Plot variable names, if \eqn{TRUE}.}
+\item{var_labels}{Logical; label the variable arrows when
+\code{TRUE} (the default).}
 
-\item{var_labels.names}{Array_like, optional. \cr
-User specific labels for the individuals.}
+\item{var_labels.names}{Optional character vector with one label per row of
+\code{rpcaObj$rotation}, in the original variable order. By default, the
+rotation row names are used, or sequential variable numbers when names
+are absent.
+Labels are displayed only when \code{var_labels = TRUE}.}
 
-\item{ind_labels}{Bool (\eqn{TRUE}, \eqn{FALSE}), optional. \cr
-Plot data point names, if \eqn{TRUE}.}
+\item{ind_labels}{Logical; show a text label for each observation when
+\code{TRUE} (the default). Set to \code{FALSE} to reduce clutter.}
 
-\item{ind_labels.names}{Array_like, optional. \cr
-User specific labels for data points.}
+\item{ind_labels.names}{Optional character vector with one label per row of
+\code{rpcaObj$x}, in the same order. By default, the score row names are
+used, or sequential row numbers when names are absent. Labels are displayed
+only when \code{ind_labels = TRUE}.}
+}
+\value{
+A \pkg{ggplot2} plot object. Print the object to draw the
+plot, or add layers, labels, and themes with \pkg{ggplot2}.
 }
 \description{
-Creates a pretty biplot which is showing the individual factor map overlayed by the
-variables factor map, i.e, plotting both the principal component scores and directions.
+Display observations in a plane defined by two retained
+principal components from \code{\link{rpca}}, with arrows showing the
+corresponding variable directions. The combined view relates variation
+among the observations to the variables used in the fit. The optional
+\pkg{ggplot2} package is required.
+}
+\details{
+Each point represents one observation, with coordinates taken
+directly from \code{rpcaObj$x}. These fitted component scores reflect the
+centering and scaling requested in \code{rpca}. The plotting function
+leaves their normalization unchanged. Axis labels give each selected
+component's share of the total processed variance in \code{rpcaObj$var},
+which includes variance outside the retained components.
+
+Each arrow represents one variable. The \code{loadings} argument changes
+its coordinates by including or omitting the component standard deviations.
+Arrows and observations retain their respective loading and score scales;
+the function does not rescale them to match visually.
+
+For centered variables with unit sample variance and nonzero component
+variance, the default coordinates equal the correlations with fitted scores
+for a deterministic SVD. A randomized fit can introduce approximation error
+in this interpretation. Other preprocessing choices give scaled directions
+that need not be correlations. Use \code{\link{ggcorplot}} to examine the
+directions separately with a unit circle.
+
+When groups are supplied, data ellipses summarize the spread of fitted
+scores within each group under the multivariate-t model used by
+\code{\link[ggplot2]{stat_ellipse}}. They do not estimate confidence
+regions for group means or test group separation. The multivariate-t
+computation also requires the recommended package \pkg{MASS}. Small
+groups or degenerate score distributions may not support ellipse
+estimation; use \code{ellipse = FALSE} in that case.
 }
 \examples{
-#See ?rpca
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(42)
+  fit <- rpca(iris[, 1:4], k = 2)
+  p <- ggbiplot(fit, groups = iris$Species, ellipse = FALSE,
+                ind_labels = FALSE)
+  print(p + ggplot2::labs(title = "Iris scores and variable directions"))
+}
+
 }
 \seealso{
-\code{\link[rsvd]{rpca}}, \code{\link[ggplot2]{ggplot}}
+\code{\link{rpca}}, \code{\link{ggindplot}},
+\code{\link{ggcorplot}}, \code{\link{ggscreeplot}},
+\code{\link[ggplot2]{ggplot}}, \code{\link[ggplot2]{stat_ellipse}}
 }
 \author{
-N. Benjamin Erichson, \email{erichson@berkeley.edu}
+N. Benjamin Erichson
 }

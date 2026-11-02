@@ -2,23 +2,70 @@
 % Please edit documentation in R/plots.R
 \name{plot.rpca}
 \alias{plot.rpca}
-\title{Screeplot}
+\title{PCA summary plots}
 \usage{
 \method{plot}{rpca}(x, ...)
 }
 \arguments{
-\item{x}{Object returned by the \code{\link[rsvd]{rpca}} function.}
+\item{x}{An object returned by \code{\link{rpca}}. Factor maps are intended
+for real-valued loadings and scores.}
 
-\item{...}{Additional arguments passed to the individual plot functions (see below).}
+\item{...}{Named arguments for \code{\link{ggscreeplot}},
+\code{\link{ggcorplot}}, or \code{\link{ggindplot}}. Each argument is
+passed only to helpers that accept it. For example, \code{type} selects
+the scree-plot quantity, \code{pcs} selects components for both factor
+maps, and \code{groups} is used only for the individual factor map.
+Names must be exact and unique; unknown or unnamed arguments are
+rejected. An explicit \code{pcs} value must contain two finite integer
+component indices within the retained range, even when a factor map is
+unavailable.}
+}
+\value{
+The last \pkg{ggplot2} plot drawn, returned invisibly. This is the
+individual factor map when available, otherwise the variable factor map
+or the scree plot.
 }
 \description{
-Creates a screeplot, variables and individual factor maps to
-             summarize the results of the \code{\link[rsvd]{rpca}} function.
+Summarize an object returned by \code{\link{rpca}} with
+plots of retained variance and of variables and observations in a
+component plane. A scree plot shows how much variation the fit captures;
+factor maps display the corresponding directions and fitted scores.
+}
+\details{
+The function draws the available plots in sequence on the
+active graphics device. The scree plot shows the variance captured by
+the retained components. With at least two components, a variable factor
+map then shows their directions in the selected plane. An individual
+factor map follows when fitted observation scores are available from
+\code{retx = TRUE}. A fit with one retained component therefore produces
+only a scree plot; a fit with at least two components and
+\code{retx = FALSE} produces the scree and variable factor plots.
+
+Factor maps use components one and two by default. Supply \code{pcs} to
+inspect another pair of retained components. Any observation groups or
+labels must correspond to the fitted score rows, after incomplete training
+observations have been omitted. The \pkg{ggplot2} package must be
+installed. Call the plotting helpers directly when a particular plot is
+needed for further customization or saving.
 }
 \examples{
-#
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(42)
+  fit <- rpca(iris[, 1:4], k = 2)
+  last_plot <- plot(fit, type = "ratio", pcs = c(1, 2),
+                    groups = iris$Species, ind_labels = FALSE,
+                    ellipse = FALSE)
+
+  # Request a single plot directly for further customization or saving.
+  scree <- ggscreeplot(fit, type = "cum")
+}
 
 }
 \seealso{
-\code{\link{ggscreeplot}}, \code{\link{ggcorplot}} , \code{\link{ggindplot}}
+\code{\link{rpca}}, \code{\link{ggscreeplot}},
+\code{\link{ggcorplot}}, \code{\link{ggindplot}},
+\code{\link{ggbiplot}}.
+}
+\author{
+N. Benjamin Erichson
 }

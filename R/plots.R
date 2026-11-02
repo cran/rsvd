@@ -1,20 +1,61 @@
-#devtools::use_package('ggplot2')
-#library('ggplot2')
-
-#' @title Screeplot
-#
-#' @description Creates a screeplot, variables and individual factor maps to
-#'              summarize the results of the \code{\link[rsvd]{rpca}} function.
+#' @title PCA summary plots
 #'
-#' @param x   Object returned by the \code{\link[rsvd]{rpca}} function.
+#' @description Summarize an object returned by \code{\link{rpca}} with
+#' plots of retained variance and of variables and observations in a
+#' component plane. A scree plot shows how much variation the fit captures;
+#' factor maps display the corresponding directions and fitted scores.
 #'
-#' @param ...     Additional arguments passed to the individual plot functions (see below).
+#' @details The function draws the available plots in sequence on the
+#' active graphics device. The scree plot shows the variance captured by
+#' the retained components. With at least two components, a variable factor
+#' map then shows their directions in the selected plane. An individual
+#' factor map follows when fitted observation scores are available from
+#' \code{retx = TRUE}. A fit with one retained component therefore produces
+#' only a scree plot; a fit with at least two components and
+#' \code{retx = FALSE} produces the scree and variable factor plots.
 #'
-#' @seealso \code{\link{ggscreeplot}}, \code{\link{ggcorplot}} , \code{\link{ggindplot}}  
+#' Factor maps use components one and two by default. Supply \code{pcs} to
+#' inspect another pair of retained components. Any observation groups or
+#' labels must correspond to the fitted score rows, after incomplete training
+#' observations have been omitted. The \pkg{ggplot2} package must be
+#' installed. Call the plotting helpers directly when a particular plot is
+#' needed for further customization or saving.
 #'
-#' @examples #
+#' @param x An object returned by \code{\link{rpca}}. Factor maps are intended
+#' for real-valued loadings and scores.
 #'
-#'@export
+#' @param ... Named arguments for \code{\link{ggscreeplot}},
+#' \code{\link{ggcorplot}}, or \code{\link{ggindplot}}. Each argument is
+#' passed only to helpers that accept it. For example, \code{type} selects
+#' the scree-plot quantity, \code{pcs} selects components for both factor
+#' maps, and \code{groups} is used only for the individual factor map.
+#' Names must be exact and unique; unknown or unnamed arguments are
+#' rejected. An explicit \code{pcs} value must contain two finite integer
+#' component indices within the retained range, even when a factor map is
+#' unavailable.
+#'
+#' @return The last \pkg{ggplot2} plot drawn, returned invisibly. This is the
+#' individual factor map when available, otherwise the variable factor map
+#' or the scree plot.
+#'
+#' @seealso \code{\link{rpca}}, \code{\link{ggscreeplot}},
+#' \code{\link{ggcorplot}}, \code{\link{ggindplot}},
+#' \code{\link{ggbiplot}}.
+#'
+#' @author N. Benjamin Erichson
+#'
+#' @examples if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   fit <- rpca(iris[, 1:4], k = 2)
+#'   last_plot <- plot(fit, type = "ratio", pcs = c(1, 2),
+#'                     groups = iris$Species, ind_labels = FALSE,
+#'                     ellipse = FALSE)
+#'
+#'   # Request a single plot directly for further customization or saving.
+#'   scree <- ggscreeplot(fit, type = "cum")
+#' }
+#'
+#' @export
 plot.rpca <- function(x, ... ) {
   
   if (!requireNamespace('ggplot2', quietly = TRUE)) {
@@ -22,11 +63,38 @@ plot.rpca <- function(x, ... ) {
          call. = FALSE)
   } 
    
-  print(ggscreeplot(x, ... ))
+  args <- list(...)
+  if(length(args)) {
+    arg_names <- names(args)
+    if(is.null(arg_names) || anyNA(arg_names) || any(arg_names == "")) {
+      stop("Additional plot arguments must be named.", call. = FALSE)
+    }
+    if(anyDuplicated(arg_names)) {
+      stop("Each plot argument must be supplied once.", call. = FALSE)
+    }
+    accepted <- unique(unlist(lapply(list(ggscreeplot, ggcorplot, ggindplot),
+      function(helper) setdiff(names(formals(helper)), "rpcaObj"))))
+    unknown <- setdiff(arg_names, accepted)
+    if(length(unknown)) {
+      stop("Unknown plot argument(s): ", paste(unknown, collapse = ", "),
+           call. = FALSE)
+    }
+    if("pcs" %in% arg_names) {
+      check_plot_pcs(x, args$pcs)
+    }
+  }
 
-  print(ggcorplot(x, ... ))
+  draw <- function(helper) {
+    selected <- args[names(args) %in% names(formals(helper))]
+    print(do.call(helper, c(list(rpcaObj = x), selected)))
+  }
 
-  print(ggindplot(x, ... ))
+  last_plot <- draw(ggscreeplot)
+  if(ncol(x$rotation) >= 2L) {
+    last_plot <- draw(ggcorplot)
+    if(!is.null(x$x)) last_plot <- draw(ggindplot)
+  }
+  invisible(last_plot)
 
 }
 
